@@ -1,0 +1,361 @@
+{
+  "preamble": {
+    "title": "vtechcom/hydra-perps",
+    "description": "Hydra Perps on-chain validators (Aiken). Locker → E2, perp_state → E3.",
+    "version": "0.0.1",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.21+42babe5"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "perp_state.perp_state.spend",
+      "datum": {
+        "title": "datum",
+        "schema": {
+          "$ref": "#/definitions/perp_state~1PerpState"
+        }
+      },
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/perp_state~1PerpRedeemer"
+        }
+      },
+      "parameters": [
+        {
+          "title": "operator",
+          "schema": {
+            "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+          }
+        }
+      ],
+      "compiledCode": "590680010100229800aba2aba1aba0aab9faab9eaab9dab9a9bae0024888888896600264653001300900198049805000cdc3a400530090024888966002600460126ea800e33001300a3754007223233001001003223300300130020029b874800260126ea80112222980098088024c044c0480124464b300130050018acc004c044dd5001c00a2c80922b300130090018acc004c044dd5001c00a2c80922c807900f18079baa0024888c966002600c00b132323259800980c80144cc028dd6180c001912cc00400a00d132598009806180b9baa001899191919191919194c004dd69811800cdd718118044dd71811803cdd718118034dd698118024dd69811801cdd6981180124444444b3001302b00889980b98150060980898158094590280c08c004c088004c084004c080004c07c004c078004c074004c060dd5000c59016180d00120308b202c375a602e002602e00260246ea80322b3001300a0058991919194c004dd6980c800cdd7180c8024dd7180c801cdd7180c80124444b3001301e005804c5901b0c064004c060004c05c004c048dd50064590102020159800980298081baa00289919912cc004c020c04cdd500144c8c9660026014602a6ea8006330013019301637540032301a301b301b301b301b301b0019180d180d980d980d980d980d980d800a444b3001323370e600200e6002008466e00cdc019b8032330010013756603c60366ea800889660020031480022646466e00cc010010c08800cdd6980f0011bae301c001301f001407464660020026eb0c01cc06cdd5001112cc0040062900044cdc01980100118100009bad3005301c3754603e00280e8dd69801980d1baa001375a600460346ea800626644b3001325980099198008009bab3020301d375400e44b30010018a51899192cc004cc010010c09000e2600a6eb4c08000a294101e1bae301e0013021001407d159800998011bac3008301c375400c4b30013002375a600c603a6ea8006260046eb4c010c074dd5000c52820368acc004c004dd69802980e1baa006898009bad3004301c375400d14a080d2294101a45282034371290004566002660026eb0c01cc06cdd5002919b893370466e08dd69801980e1baa001375a603e604060406040604060386ea800520e807337046eb4c014c070dd5000a414138031598009919b88375a600260386ea8024dd69800980e1baa0062301f30203020302030203020302030200018acc004c03cc068dd500ac4c8cc004004dd6180f98101810181018101810181018101810180e1baa0132259800800c528456600266e3cdd7181000080d4528c4cc008008c08400501b203c899194c004dd718100014dd998101810800cdd71810000ae546040002603e60366ea8055019452820328a50406514a080c88c074c078c078c07800488c8cc00400400c896600200314a315980098019810000c4cc008008c084006294101b203c8a50405c8b2028332232598009806180b9baa0018992cc004cdc3a400860306ea8006264b3001300e301937540031323232323232323298009bad30250019bac30250079bae30250069bad30250059bac30250049bad30250039bad30250024888888966002605a01113301e3756605801e44b3001002899810004112cc00400a26604400e44b3001002899ba548000cc0c40592f5c113259800981218179baa00189919194c004dd6981b000cdd7181b001cdd6981b0012444b3001303a00489804181d004c590370c0d8004c0d4004c0c0dd5000c5902e181900120608992cc004c088c0b4dd5000c4c8c8c8c8c8c8ca60026eb4c0e00066eb8c0e001e6eb8c0e001a6eb4c0e00126eb4c0e000e6eb4c0e000922222259800981f803c4cc0acc0f802c4c03cc0fc0422c81e06070002606e002606c002606a00260680026066002605c6ea80062c8160c0c000902e44c8cc88c010c0c8014dd718158009bad302c001302e00240b11640a8302500130240013023001302200130210013020001301f001301a3754003164060603860326ea80062980103d87a8000405c600660306ea8c06cc060dd5000c5300103d87a800040586600c6eb0c008c05cdd5007119baf301b3018375400200446032603460340026030602a6ea8c004c054dd5180c180a9baa0032301830190018b2024330013758602a60246ea80248cdd7980b18099baa00100530153012375400644646600200200644b30010018a6103d87a80008992cc004c010006266e952000330180014bd7044cc00c00cc068009014180c000a02c8b201e22c8040601200260086ea802629344d9590021",
+      "hash": "12ff27f118213550cc61bd95f55845211790f7f3fabea94d07aece64"
+    },
+    {
+      "title": "perp_state.perp_state.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "parameters": [
+        {
+          "title": "operator",
+          "schema": {
+            "$ref": "#/definitions/aiken~1crypto~1VerificationKeyHash"
+          }
+        }
+      ],
+      "compiledCode": "590680010100229800aba2aba1aba0aab9faab9eaab9dab9a9bae0024888888896600264653001300900198049805000cdc3a400530090024888966002600460126ea800e33001300a3754007223233001001003223300300130020029b874800260126ea80112222980098088024c044c0480124464b300130050018acc004c044dd5001c00a2c80922b300130090018acc004c044dd5001c00a2c80922c807900f18079baa0024888c966002600c00b132323259800980c80144cc028dd6180c001912cc00400a00d132598009806180b9baa001899191919191919194c004dd69811800cdd718118044dd71811803cdd718118034dd698118024dd69811801cdd6981180124444444b3001302b00889980b98150060980898158094590280c08c004c088004c084004c080004c07c004c078004c074004c060dd5000c59016180d00120308b202c375a602e002602e00260246ea80322b3001300a0058991919194c004dd6980c800cdd7180c8024dd7180c801cdd7180c80124444b3001301e005804c5901b0c064004c060004c05c004c048dd50064590102020159800980298081baa00289919912cc004c020c04cdd500144c8c9660026014602a6ea8006330013019301637540032301a301b301b301b301b301b0019180d180d980d980d980d980d980d800a444b3001323370e600200e6002008466e00cdc019b8032330010013756603c60366ea800889660020031480022646466e00cc010010c08800cdd6980f0011bae301c001301f001407464660020026eb0c01cc06cdd5001112cc0040062900044cdc01980100118100009bad3005301c3754603e00280e8dd69801980d1baa001375a600460346ea800626644b3001325980099198008009bab3020301d375400e44b30010018a51899192cc004cc010010c09000e2600a6eb4c08000a294101e1bae301e0013021001407d159800998011bac3008301c375400c4b30013002375a600c603a6ea8006260046eb4c010c074dd5000c52820368acc004c004dd69802980e1baa006898009bad3004301c375400d14a080d2294101a45282034371290004566002660026eb0c01cc06cdd5002919b893370466e08dd69801980e1baa001375a603e604060406040604060386ea800520e807337046eb4c014c070dd5000a414138031598009919b88375a600260386ea8024dd69800980e1baa0062301f30203020302030203020302030200018acc004c03cc068dd500ac4c8cc004004dd6180f98101810181018101810181018101810180e1baa0132259800800c528456600266e3cdd7181000080d4528c4cc008008c08400501b203c899194c004dd718100014dd998101810800cdd71810000ae546040002603e60366ea8055019452820328a50406514a080c88c074c078c078c07800488c8cc00400400c896600200314a315980098019810000c4cc008008c084006294101b203c8a50405c8b2028332232598009806180b9baa0018992cc004cdc3a400860306ea8006264b3001300e301937540031323232323232323298009bad30250019bac30250079bae30250069bad30250059bac30250049bad30250039bad30250024888888966002605a01113301e3756605801e44b3001002899810004112cc00400a26604400e44b3001002899ba548000cc0c40592f5c113259800981218179baa00189919194c004dd6981b000cdd7181b001cdd6981b0012444b3001303a00489804181d004c590370c0d8004c0d4004c0c0dd5000c5902e181900120608992cc004c088c0b4dd5000c4c8c8c8c8c8c8ca60026eb4c0e00066eb8c0e001e6eb8c0e001a6eb4c0e00126eb4c0e000e6eb4c0e000922222259800981f803c4cc0acc0f802c4c03cc0fc0422c81e06070002606e002606c002606a00260680026066002605c6ea80062c8160c0c000902e44c8cc88c010c0c8014dd718158009bad302c001302e00240b11640a8302500130240013023001302200130210013020001301f001301a3754003164060603860326ea80062980103d87a8000405c600660306ea8c06cc060dd5000c5300103d87a800040586600c6eb0c008c05cdd5007119baf301b3018375400200446032603460340026030602a6ea8c004c054dd5180c180a9baa0032301830190018b2024330013758602a60246ea80248cdd7980b18099baa00100530153012375400644646600200200644b30010018a6103d87a80008992cc004c010006266e952000330180014bd7044cc00c00cc068009014180c000a02c8b201e22c8040601200260086ea802629344d9590021",
+      "hash": "12ff27f118213550cc61bd95f55845211790f7f3fabea94d07aece64"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "List<perp_state/FundingState>": {
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/perp_state~1FundingState"
+      }
+    },
+    "List<perp_state/MatchedTrade>": {
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/perp_state~1MatchedTrade"
+      }
+    },
+    "List<perp_state/Position>": {
+      "dataType": "list",
+      "items": {
+        "$ref": "#/definitions/perp_state~1Position"
+      }
+    },
+    "Pairs<ByteArray,Int>": {
+      "title": "Pairs<ByteArray, Int>",
+      "dataType": "map",
+      "keys": {
+        "$ref": "#/definitions/ByteArray"
+      },
+      "values": {
+        "$ref": "#/definitions/Int"
+      }
+    },
+    "aiken/crypto/VerificationKeyHash": {
+      "title": "VerificationKeyHash",
+      "dataType": "bytes"
+    },
+    "cardano/assets/AssetName": {
+      "title": "AssetName",
+      "dataType": "bytes"
+    },
+    "cardano/assets/PolicyId": {
+      "title": "PolicyId",
+      "dataType": "bytes"
+    },
+    "locker/LockerDatum": {
+      "title": "LockerDatum",
+      "description": "Canonical shape: packages/shared/src/datum.ts → `LockerDatum`\n `{ owner: PubKeyHash, asset: AssetUnit, amount: bigint }`.\n Field order/types MUST stay in sync with the TS source (PlutusData contract).\n  - owner: blake2b-224 verification-key hash (28 bytes)\n  - asset: asset unit = policyId(28 bytes) ++ assetNameHex\n  - amount: integer fixed-point quantity (USDM_SCALE = 1e6)",
+      "anyOf": [
+        {
+          "title": "LockerDatum",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "owner",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "asset",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "amount",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "locker/LockerRedeemer": {
+      "title": "LockerRedeemer",
+      "description": "Canonical shape: packages/shared/src/redeemer.ts → `LockerRedeemer { kind: 'Commit' }`.\n Single constructor → PlutusData `Constr 0 []`. The TS `kind: 'Commit'` string\n discriminator maps to this constructor index. Adding a variant is a BREAKING\n change: re-sync the TS encoder. AC5: there is intentionally NO release variant.",
+      "anyOf": [
+        {
+          "title": "Commit",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        }
+      ]
+    },
+    "perp_state/FundingState": {
+      "title": "FundingState",
+      "description": "Funding state per market (canonical FundingState).",
+      "anyOf": [
+        {
+          "title": "FundingState",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "market",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "cumulative_funding_index",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "last_funding_seq",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "perp_state/MatchedTrade": {
+      "title": "MatchedTrade",
+      "description": "One matched trade applied to in-Head state (canonical MatchedTrade).",
+      "anyOf": [
+        {
+          "title": "MatchedTrade",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "market",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "maker",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "taker",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "side",
+              "$ref": "#/definitions/perp_state~1Side"
+            },
+            {
+              "title": "price",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "size",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "maker_nonce",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "taker_nonce",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "perp_state/PerpRedeemer": {
+      "title": "PerpRedeemer",
+      "description": "Redeemer union for the in-Head perp_state validator (canonical PerpStateRedeemer).",
+      "anyOf": [
+        {
+          "title": "MatchedOrders",
+          "description": "Apply a batch of matched orders to perp_state.",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "batch",
+              "$ref": "#/definitions/List<perp_state~1MatchedTrade>"
+            },
+            {
+              "title": "seq",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        },
+        {
+          "title": "SessionKeyWitness",
+          "description": "Session-key witness authorizing an action on behalf of a trader.",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": [
+            {
+              "title": "trader",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "session_key",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "signature",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "nonce",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "perp_state/PerpState": {
+      "title": "PerpState",
+      "description": "In-Head perp state datum (canonical PerpStateDatum). `balances` specialized to the\n single in-Head collateral asset: trader pkh → collateral amount.",
+      "anyOf": [
+        {
+          "title": "PerpState",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "balances",
+              "$ref": "#/definitions/Pairs<ByteArray,Int>"
+            },
+            {
+              "title": "positions",
+              "$ref": "#/definitions/List<perp_state~1Position>"
+            },
+            {
+              "title": "orderbook_root",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "realized_pnl",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "funding",
+              "$ref": "#/definitions/List<perp_state~1FundingState>"
+            },
+            {
+              "title": "insurance",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "vault",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "seq",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "perp_state/Position": {
+      "title": "Position",
+      "description": "One open position held inside the Head (canonical PositionDatum).",
+      "anyOf": [
+        {
+          "title": "Position",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "trader",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "market",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "side",
+              "$ref": "#/definitions/perp_state~1Side"
+            },
+            {
+              "title": "size",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "entry_price",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "margin",
+              "$ref": "#/definitions/Int"
+            },
+            {
+              "title": "funding_index_snapshot",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "perp_state/Side": {
+      "title": "Side",
+      "description": "Side of a perp position (canonical PositionSide). Constructor order is part of the\n CBOR contract: Long = 0, Short = 1.",
+      "anyOf": [
+        {
+          "title": "Long",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        },
+        {
+          "title": "Short",
+          "dataType": "constructor",
+          "index": 1,
+          "fields": []
+        }
+      ]
+    }
+  }
+}

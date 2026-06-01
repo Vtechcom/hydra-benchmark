@@ -1,0 +1,27 @@
+{
+  "name": "hydra-benchmark",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Extensible load/latency benchmark harness for a live Hydra head (in-head Plutus throughput). Ported and generalised from the r1-spike rig.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "bench": "tsx src/cli.ts",
+    "smoke": "tsx src/cli.ts --smoke",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hydra-sdk/bridge": "^1.3.1",
+    "@hydra-sdk/cardano-wasm": "^0.0.7",
+    "@hydra-sdk/core": "^1.3.2",
+    "@hydra-sdk/transaction": "^1.1.8",
+    "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

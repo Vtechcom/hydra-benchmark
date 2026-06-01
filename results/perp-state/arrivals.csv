@@ -1,0 +1,14 @@
+event,ms_since_first_fire,count
+txvalid_burst,21,1
+txvalid_burst,1026,16
+txvalid_burst,2196,19
+txvalid_burst,3476,8
+txvalid_burst,6078,21
+txvalid_burst,7641,43
+txvalid_burst,16610,12
+snapshot_confirmed,997,1
+snapshot_confirmed,2187,1
+snapshot_confirmed,3724,19
+snapshot_confirmed,7585,23
+snapshot_confirmed,18173,29
+snapshot_confirmed,19784,47

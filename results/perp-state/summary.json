@@ -1,0 +1,86 @@
+{
+  "testcase": "perp-state",
+  "decision": "GATE FAIL",
+  "gatedOn": "txvalid",
+  "mode": "chained",
+  "loop": "open-loop",
+  "gateMs": 200,
+  "targetTps": 20,
+  "durationS": 6,
+  "lanes": 40,
+  "chainLen": 3,
+  "totalTxs": 120,
+  "warmupFrac": 0.2,
+  "submitted": 120,
+  "valid": 120,
+  "invalid": 0,
+  "staleInputRace": 0,
+  "confirmed": 120,
+  "snapshots": 6,
+  "avgTxPerSnapshot": 20,
+  "offeredTps": 20,
+  "validTps": 20,
+  "confirmTps": 20,
+  "saturated": false,
+  "latencyValid": true,
+  "txValidLatencyMs": {
+    "p50": 3184.2075000000004,
+    "p95": 3935.574707999999,
+    "p99": 4075.3271250000007,
+    "max": 4075.3271250000007,
+    "steadySamples": 71,
+    "totalSamples": 120
+  },
+  "snapshotConfirmLatencyMs": {
+    "p50": 15132.310542,
+    "p95": 15953.13925,
+    "p99": 16086.624791999999,
+    "max": 16086.624791999999,
+    "steadySamples": 71,
+    "totalSamples": 120
+  },
+  "batching": {
+    "burstGapMs": 250,
+    "txValidBursts": 7,
+    "txValidBurstSize": {
+      "p50": 16,
+      "max": 43
+    },
+    "txValidInterBurstMs": {
+      "p50": 1563.5436250000002,
+      "p95": 8969.217625000001,
+      "max": 8969.217625000001
+    },
+    "snapshotIntervalMs": {
+      "p50": 1611.1315839999988,
+      "p95": 10588.507541,
+      "max": 10588.507541
+    }
+  },
+  "nodeVsClient": {
+    "samples": 120,
+    "nodeEmitGapMs": {
+      "p50": 4,
+      "p95": 844,
+      "max": 8928
+    },
+    "clientRecvGapMs": {
+      "p50": 0.07525000000077853,
+      "p95": 976.9079999999999,
+      "max": 8929.77675
+    },
+    "verdict": "both-continuous"
+  },
+  "meta": {
+    "validatorTitle": "perp_state.perp_state.spend",
+    "validatorHash": "0bc1d705fecebc103b9bec89bca84aa87038ced87f4b2b953923d518",
+    "validatorAddress": "addr_test1wq9ur4c9lm8tcypmn0kgn09gf258qwxwmpl5k2u48y3a2xqnql5ka",
+    "operatorVkh": "a8817721ee8a283156d7638de0e17540b97df1e9e85c6b90fb435868",
+    "note": "single-node devnet — multi-party confirm latency not captured; in-head exec-unit price = 0"
+  },
+  "head": {
+    "ws": "ws://localhost:4003",
+    "http": "http://localhost:4003"
+  },
+  "timestamp": "2026-06-01T09:35:37.941Z"
+}
