@@ -181,10 +181,7 @@ function renderMarkdown(p: {
 
 	const staleNote =
 		stats.staleInputRace > 0
-			? `\n> ⚠️ **${stats.staleInputRace} stale-input races** (BadInputsUTxO): a chained successor was fired before its
-> predecessor was applied — a *rig timing* artifact, **not** a validator reject, so it is excluded from the gate.
-> The offered rate outran node apply-latency for the lane revisit interval (${config.lanes}/${config.tps}=${laneRevisit}s).
-> Re-run with \`--independent\` (no intra-lane deps) or \`BENCH_INFLIGHT_MAX=K\` (closed-loop) to remove it.\n`
+			? `\n> ⚠️ **${stats.staleInputRace} stale-input races** (BadInputsUTxO): a chained successor was fired before its predecessor was applied — a *rig timing* artifact, **not** a validator reject, so it is excluded from the gate. The offered rate outran node apply-latency for the lane revisit interval (${config.lanes}/${config.tps}=${laneRevisit}s). Re-run with \`--independent\` (no intra-lane deps) or \`BENCH_INFLIGHT_MAX=K\` (closed-loop) to remove it.\n`
 			: ''
 
 	return `# ${testcaseName} — Hydra in-head benchmark @ ${config.tps} TPS [auto-generated]
@@ -192,14 +189,12 @@ function renderMarkdown(p: {
 > ${testcaseDescription}
 
 **Date:** ${summary.timestamp}
+
 **Decision:** **${decision}** — gated on **${gate.metric}** steady P95 = ${gatedP95}ms vs gate ≤ ${gateMs}ms.
 
 ## What was measured
 
-${config.totalTxs} pre-signed txs were fired round-robin across ${config.lanes} independent lanes at a
-sustained ${config.tps} TPS (${summary.loop}). Signing is off the hot path, so the rig genuinely *offers*
-the target rate — any remaining ceiling is the node's. Two latencies are correlated per tx: **TxValid**
-(node validated the state transition locally) and **SnapshotConfirmed** (settled in a signed snapshot).
+${config.totalTxs} pre-signed txs were fired round-robin across ${config.lanes} independent lanes at a sustained ${config.tps} TPS (${summary.loop}). Signing is off the hot path, so the rig genuinely *offers* the target rate — any remaining ceiling is the node's. Two latencies are correlated per tx: **TxValid** (node validated the state transition locally) and **SnapshotConfirmed** (settled in a signed snapshot).
 
 | Metric | Value |
 |---|---|
@@ -218,17 +213,9 @@ the target rate — any remaining ceiling is the node's. Two latencies are corre
 | Saturated? | ${summary.saturated} |
 | node-vs-client verdict | ${summary.nodeVsClient.verdict} |
 
-Two metrics, two purposes. **TxValid** = node applied the state transition (the right latency for
-*matching* feasibility). **SnapshotConfirmed** = settled in a multi-party-signed snapshot (the only state
-safe to fan out / withdraw against). Hydra **batches** snapshots on a cadence, so per-tx SnapshotConfirmed
-P95 ≤ ${gateMs}ms is *not* an achievable target and must NOT gate matching; it is tracked as a separate
-settlement-cadence signal. Where the throughputs diverge locates any ceiling: offered ≈ ${config.tps} but
-validated ≪ ${config.tps} ⇒ node validation is the limit; validated ≈ offered but confirm lags ⇒ snapshot
-cadence (settlement), not matching.
+Two metrics, two purposes. **TxValid** = node applied the state transition (the right latency for *matching* feasibility). **SnapshotConfirmed** = settled in a multi-party-signed snapshot (the only state safe to fan out / withdraw against). Hydra **batches** snapshots on a cadence, so per-tx SnapshotConfirmed P95 ≤ ${gateMs}ms is *not* an achievable target and must NOT gate matching; it is tracked as a separate settlement-cadence signal. Where the throughputs diverge locates any ceiling: offered ≈ ${config.tps} but validated ≪ ${config.tps} ⇒ node validation is the limit; validated ≈ offered but confirm lags ⇒ snapshot cadence (settlement), not matching.
 ${staleNote}
-> ⚠️ TxValid is **not** finality. On head close/contestation only the latest *confirmed snapshot* survives
-> on L1; a TxValid-but-not-yet-snapshotted tx can be lost. Custody/withdraw/fanout MUST wait for
-> SnapshotConfirmed.
+> ⚠️ TxValid is **not** finality. On head close/contestation only the latest *confirmed snapshot* survives on L1; a TxValid-but-not-yet-snapshotted tx can be lost. Custody/withdraw/fanout MUST wait for SnapshotConfirmed.
 
 ## Testcase metadata
 
@@ -244,8 +231,8 @@ ${pass
 
 \`\`\`bash
 HYDRA_WS=${config.ws} HYDRA_HTTP=${config.http} \\
-  pnpm bench --testcase ${testcaseName}            # full run (${config.tps} TPS, ${config.totalTxs} txs)
-pnpm bench --testcase ${testcaseName} --smoke      # quick sanity
+  BENCH_TPS=${config.tps} BENCH_DURATION_S=${config.durationS} BENCH_LANES=${config.lanes} \\
+  pnpm bench --testcase ${testcaseName}            # this run (${config.tps} TPS × ${config.durationS}s, ${config.totalTxs} txs)
 \`\`\`
 
 Machine-readable summary: \`results/${testcaseName}/summary.json\`.

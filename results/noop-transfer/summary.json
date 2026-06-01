@@ -1,0 +1,84 @@
+{
+  "testcase": "noop-transfer",
+  "decision": "GATE FAIL",
+  "gatedOn": "txvalid",
+  "mode": "chained",
+  "loop": "open-loop",
+  "gateMs": 200,
+  "targetTps": 20,
+  "durationS": 6,
+  "lanes": 40,
+  "chainLen": 3,
+  "totalTxs": 120,
+  "warmupFrac": 0.2,
+  "submitted": 120,
+  "valid": 120,
+  "invalid": 0,
+  "staleInputRace": 0,
+  "confirmed": 120,
+  "snapshots": 6,
+  "avgTxPerSnapshot": 20,
+  "offeredTps": 20,
+  "validTps": 20,
+  "confirmTps": 20,
+  "saturated": false,
+  "latencyValid": true,
+  "txValidLatencyMs": {
+    "p50": 4021.3059590000003,
+    "p95": 4733.4085000000005,
+    "p99": 4870.438208,
+    "max": 4870.438208,
+    "steadySamples": 72,
+    "totalSamples": 120
+  },
+  "snapshotConfirmLatencyMs": {
+    "p50": 15669.566917,
+    "p95": 16475.324833,
+    "p99": 16617.654167,
+    "max": 16617.654167,
+    "steadySamples": 72,
+    "totalSamples": 120
+  },
+  "batching": {
+    "burstGapMs": 250,
+    "txValidBursts": 7,
+    "txValidBurstSize": {
+      "p50": 19,
+      "max": 48
+    },
+    "txValidInterBurstMs": {
+      "p50": 1482.5823330000003,
+      "p95": 8495.0995,
+      "max": 8495.0995
+    },
+    "snapshotIntervalMs": {
+      "p50": 1612.8766250000008,
+      "p95": 10329.959916999998,
+      "max": 10329.959916999998
+    }
+  },
+  "nodeVsClient": {
+    "samples": 120,
+    "nodeEmitGapMs": {
+      "p50": 3,
+      "p95": 40,
+      "max": 8491
+    },
+    "clientRecvGapMs": {
+      "p50": 0.011167000000568805,
+      "p95": 1014.4978340000002,
+      "max": 8491.374334
+    },
+    "verdict": "both-continuous"
+  },
+  "meta": {
+    "wallet": "addr_test1qz5gzaepa69zsv2k6a3cmc8pw4qtjl03a859c6usldp4s6r5gw88l78t4wdzqzp6nettjf9vqu45ta4zkza20hhst3vq433aez",
+    "laneAda": 3,
+    "note": "non-Plutus baseline"
+  },
+  "head": {
+    "ws": "ws://localhost:4003",
+    "http": "http://localhost:4003"
+  },
+  "timestamp": "2026-06-01T09:41:15.860Z"
+}

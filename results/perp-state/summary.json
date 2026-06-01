@@ -18,56 +18,56 @@
   "confirmed": 120,
   "snapshots": 6,
   "avgTxPerSnapshot": 20,
-  "offeredTps": 20,
-  "validTps": 20,
-  "confirmTps": 20,
+  "offeredTps": 20.1,
+  "validTps": 20.1,
+  "confirmTps": 20.1,
   "saturated": false,
   "latencyValid": true,
   "txValidLatencyMs": {
-    "p50": 3184.2075000000004,
-    "p95": 3935.574707999999,
-    "p99": 4075.3271250000007,
-    "max": 4075.3271250000007,
-    "steadySamples": 71,
+    "p50": 3895.751583,
+    "p95": 4740.163917,
+    "p99": 4881.918709,
+    "max": 4881.918709,
+    "steadySamples": 72,
     "totalSamples": 120
   },
   "snapshotConfirmLatencyMs": {
-    "p50": 15132.310542,
-    "p95": 15953.13925,
-    "p99": 16086.624791999999,
-    "max": 16086.624791999999,
-    "steadySamples": 71,
+    "p50": 15961.407749999998,
+    "p95": 16764.674542,
+    "p99": 16913.904,
+    "max": 16913.904,
+    "steadySamples": 72,
     "totalSamples": 120
   },
   "batching": {
     "burstGapMs": 250,
     "txValidBursts": 7,
     "txValidBurstSize": {
-      "p50": 16,
+      "p50": 18,
       "max": 43
     },
     "txValidInterBurstMs": {
-      "p50": 1563.5436250000002,
-      "p95": 8969.217625000001,
-      "max": 8969.217625000001
+      "p50": 1776.206666,
+      "p95": 8609.3785,
+      "max": 8609.3785
     },
     "snapshotIntervalMs": {
-      "p50": 1611.1315839999988,
-      "p95": 10588.507541,
-      "max": 10588.507541
+      "p50": 1705.4307090000002,
+      "p95": 10564.169582999999,
+      "max": 10564.169582999999
     }
   },
   "nodeVsClient": {
     "samples": 120,
     "nodeEmitGapMs": {
       "p50": 4,
-      "p95": 844,
-      "max": 8928
+      "p95": 942,
+      "max": 8567
     },
     "clientRecvGapMs": {
-      "p50": 0.07525000000077853,
-      "p95": 976.9079999999999,
-      "max": 8929.77675
+      "p50": 0.013624999999592546,
+      "p95": 1039.9674159999995,
+      "max": 8567.857292000002
     },
     "verdict": "both-continuous"
   },
@@ -82,5 +82,5 @@
     "ws": "ws://localhost:4003",
     "http": "http://localhost:4003"
   },
-  "timestamp": "2026-06-01T09:35:37.941Z"
+  "timestamp": "2026-06-01T09:43:56.560Z"
 }
