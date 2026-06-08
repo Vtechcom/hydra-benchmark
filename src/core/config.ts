@@ -10,7 +10,7 @@ import dotenv from 'dotenv'
 dotenv.config()
 
 const DEFAULT_MNEMONIC =
-	'amount half silver digital green goose loan face blanket slow proof proof unlock pride web drink youth spin state tiny napkin egg slice exhaust'
+	'aim betray remove party capable tiny model fashion relax room august always melody eye diamond cinnamon mother advice blanket earn garden copy empower symptom'
 
 /** First non-empty env var among `keys`, else `def`. */
 export function firstEnv(env: NodeJS.ProcessEnv, keys: string[], def: string): string {
@@ -37,6 +37,9 @@ export type BenchConfig = {
 	smoke: boolean
 	/** every tx spends its own seed (chain length pinned to 1) — isolates raw single-tx latency */
 	independent: boolean
+	/** multi-step throughput-knee sweep; open-loop by design */
+	sweepSteps: number[]
+	stepS: number
 	tps: number
 	durationS: number
 	lanes: number
@@ -87,22 +90,43 @@ export function parseArgs(argv: string[]): CliArgs {
 export function resolveConfig(args: CliArgs, env: NodeJS.ProcessEnv = process.env): BenchConfig {
 	const smoke = args.smoke
 	const independent = args.independent
-	const tps = envNum(env, ['BENCH_TPS', 'R1_TPS'], 20)
-	const durationS = envNum(env, ['BENCH_DURATION_S', 'R1_DURATION_S'], 6)
+	const sweepSteps = firstEnv(env, ['BENCH_SWEEP', 'R1_SWEEP'], '')
+		.split(',')
+		.map(s => Number(s.trim()))
+		.filter(n => n > 0)
+	const isSweep = sweepSteps.length > 1
+	const stepS = envNum(env, ['BENCH_STEP_S', 'R1_STEP_S'], 12)
+	const maxSweepTps = isSweep ? Math.max(...sweepSteps) : 0
+	const sweepTotal = isSweep ? sweepSteps.reduce((a, t) => a + Math.round(t * stepS), 0) : 0
+
+	const tps = envNum(env, ['BENCH_TPS', 'R1_TPS'], smoke ? 20 : 200)
+	const durationS = envNum(env, ['BENCH_DURATION_S', 'R1_DURATION_S'], smoke ? 6 : 60)
 
 	const lanes = envNum(
 		env,
 		['BENCH_LANES', 'R1_LANES'],
-		independent ? Math.max(tps * durationS, 100) : 40
+		isSweep
+			? Math.max(maxSweepTps * 2, 400)
+			: independent
+				? smoke
+					? 100
+					: Math.max(tps * durationS, 200)
+				: smoke
+					? 40
+					: 400
 	)
-	const chainLen = independent
-		? 1
-		: envNum(env, ['BENCH_CHAIN', 'R1_CHAIN'], Math.max(1, Math.ceil((tps * durationS) / lanes)))
+	const chainLen = isSweep
+		? Math.max(1, Math.ceil(sweepTotal / lanes))
+		: independent
+			? 1
+			: envNum(env, ['BENCH_CHAIN', 'R1_CHAIN'], Math.max(1, Math.ceil((tps * durationS) / lanes)))
 
 	return {
 		testcase: args.testcase ?? 'perp-state',
 		smoke,
 		independent,
+		sweepSteps,
+		stepS,
 		tps,
 		durationS,
 		lanes,
@@ -110,11 +134,11 @@ export function resolveConfig(args: CliArgs, env: NodeJS.ProcessEnv = process.en
 		totalTxs: lanes * chainLen,
 		warmupFrac: envNum(env, ['BENCH_WARMUP_FRAC', 'R1_WARMUP_FRAC'], 0.2),
 		gateMs: envNum(env, ['BENCH_GATE_MS', 'R1_GATE_MS'], 200),
-		inflightMax: envNum(env, ['BENCH_INFLIGHT_MAX', 'R1_INFLIGHT_MAX'], 0),
+		inflightMax: isSweep ? 0 : envNum(env, ['BENCH_INFLIGHT_MAX', 'R1_INFLIGHT_MAX'], 0),
 		inflightGate: envStr(env, ['BENCH_INFLIGHT_GATE', 'R1_INFLIGHT_GATE'], 'txvalid') as InflightGate,
 		graceMs: envNum(env, ['BENCH_GRACE_MS', 'R1_GRACE_MS'], 20_000),
-		ws: envStr(env, ['HYDRA_WS'], 'ws://localhost:4001'),
-		http: envStr(env, ['HYDRA_HTTP'], 'http://localhost:4001'),
+		ws: envStr(env, ['HYDRA_WS'], 'ws://localhost:4003'),
+		http: envStr(env, ['HYDRA_HTTP'], 'http://localhost:4003'),
 		outDir: envStr(env, ['BENCH_OUT_DIR'], ''),
 		mnemonic: envStr(env, ['BENCH_MNEMONIC', 'R1_MNEMONIC'], DEFAULT_MNEMONIC).split(' '),
 		env

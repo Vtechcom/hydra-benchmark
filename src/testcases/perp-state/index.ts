@@ -5,7 +5,7 @@
  * Story 3.1, parameterised by an `operator` vkey hash). Each tx spends a
  * validator-locked UTxO carrying an inline `PerpState` datum and emits a fresh
  * one with `seq` bumped by 1, authorised by a no-op `MatchedOrders { batch: [],
- * seq }` redeemer (conserves value 0==0, bumps seq → all 5 invariants hold).
+ * seq }` redeemer (conserves value 0==0, bumps seq → all invariants hold).
  *
  *   Phase 1 (fanout): spend the wallet into LANES independent seed triples —
  *     each lane = {validator UTxO seq0, funding UTxO, dedicated collateral}.
@@ -82,7 +82,8 @@ function deriveCtx(p: PrepareContext): Ctx {
 	}
 }
 
-// Minimal accepted PerpState: empty balances/positions/funding, zero pnl/insurance/vault, monotonic seq.
+// Minimal accepted PerpState: empty balances/positions/funding/session keys,
+// zero pnl/insurance/vault, monotonic seq.
 function buildPerpState(seq: number): CardanoWASM.PlutusData {
 	const f = CardanoWASM.PlutusList.new()
 	f.add(CardanoWASM.PlutusData.new_map(CardanoWASM.PlutusMap.new())) // balances: Pairs (empty)
@@ -90,6 +91,7 @@ function buildPerpState(seq: number): CardanoWASM.PlutusData {
 	f.add(CardanoWASM.PlutusData.new_bytes(new Uint8Array())) // orderbook_root: #""
 	f.add(CardanoWASM.PlutusData.new_integer(CardanoWASM.BigInt.from_str('0'))) // realized_pnl
 	f.add(CardanoWASM.PlutusData.new_list(CardanoWASM.PlutusList.new())) // funding: []
+	f.add(CardanoWASM.PlutusData.new_list(CardanoWASM.PlutusList.new())) // session_keys: []
 	f.add(CardanoWASM.PlutusData.new_integer(CardanoWASM.BigInt.from_str('0'))) // insurance
 	f.add(CardanoWASM.PlutusData.new_integer(CardanoWASM.BigInt.from_str('0'))) // vault
 	f.add(CardanoWASM.PlutusData.new_integer(CardanoWASM.BigInt.from_str(String(seq)))) // seq
@@ -151,7 +153,14 @@ async function fanout(p: PrepareContext, c: Ctx): Promise<Lane[]> {
 		const tx = await tb.changeAddress(c.walletAddress).complete()
 		const signed = await c.wallet.signTx(tx.to_hex())
 		const txId = Resolver.resolveTxHash(signed)
-		await client.submitTxSync(signed, txId, 'bench-fanout')
+		try {
+			await client.submitTxSync(signed, txId, 'bench-fanout')
+		} catch (e: any) {
+			const detail = `${e?.tag ?? ''} ${e?.reason ?? ''} ${String(e?.message ?? e)}`
+			const recoverable = /timeout|already (been )?included|inputs are spent|already exists/i.test(detail)
+			if (!recoverable) throw e
+			console.warn(`[fanout] non-fatal submit (${e?.tag ?? 'err'}) ${txId.slice(0, 12)}… — polling for landing instead`)
+		}
 
 		for (const t of triples)
 			lanes.push({
@@ -168,22 +177,40 @@ async function fanout(p: PrepareContext, c: Ctx): Promise<Lane[]> {
 }
 
 // ── phase 2: pre-sign every lane's chain (cold, off the clock) ───────────────────────────
-function buildSpend(c: Ctx, scriptUtxo: Utxo, funding: Utxo, collateral: Utxo): Promise<CardanoWASM.Transaction> {
+async function buildSpend(c: Ctx, scriptUtxo: Utxo, funding: Utxo, collateral: Utxo): Promise<CardanoWASM.Transaction> {
 	const inSeq = scriptUtxo.seq ?? 0
 	const outSeq = inSeq + 1 // strict seq monotonicity (invariant 4): out.seq > in.seq
-	return newTxBuilder()
+	const inState = buildPerpState(inSeq)
+	const redeemer = matchedOrdersRedeemer(outSeq)
+	const outState = buildPerpState(outSeq)
+
+	const tb = newTxBuilder()
 		.setInputs([funding] as any)
 		.txIn(scriptUtxo.input.txHash, scriptUtxo.input.outputIndex, lovelace(c.lockLL) as any, c.validatorAddress)
 		.txInScript(c.scriptCborHex)
-		.txInInlineDatum(buildPerpState(inSeq))
-		.txInRedeemerValue(matchedOrdersRedeemer(outSeq))
+		.txInInlineDatum(inState)
+		.txInRedeemerValue(redeemer)
 		.txInCollateral(collateral.input.txHash, collateral.input.outputIndex, collateral.output.amount as any, collateral.output.address)
 		.addOutput({ address: c.validatorAddress, amount: lovelace(c.lockLL) })
-		.txOutInlineDatumValue(buildPerpState(outSeq))
+		.txOutInlineDatumValue(outState)
 		.addOutput({ address: c.walletAddress, amount: lovelace(c.fundLL) })
 		.requiredSignerHash(c.operatorVkhHex) // operator ∈ extra_signatories (invariant 5)
 		.changeAddress(c.walletAddress)
-		.complete() as Promise<CardanoWASM.Transaction>
+
+	const tx = await tb.complete() as CardanoWASM.Transaction
+
+	// Free TxBuilder intermediate WASM structures
+	// @ts-ignore
+	if (tb._txBuilder) tb._txBuilder.free()
+	// @ts-ignore
+	if (tb._metadata) tb._metadata.free()
+
+	// Free intermediate datums/redeemer WASM objects
+	inState.free()
+	redeemer.free()
+	outState.free()
+
+	return tx
 }
 
 async function presign(p: PrepareContext, c: Ctx, lanes: Lane[]): Promise<Signed[][]> {
@@ -192,6 +219,11 @@ async function presign(p: PrepareContext, c: Ctx, lanes: Lane[]): Promise<Signed
 	const t0 = Date.now()
 	const chains: Signed[][] = []
 	let done = 0
+
+	let totalBuildMs = 0
+	let totalSignMs = 0
+	let totalHashMs = 0
+
 	for (let l = 0; l < lanes.length; l++) {
 		const lane = lanes[l]
 		let vIn = lane.validator
@@ -200,20 +232,41 @@ async function presign(p: PrepareContext, c: Ctx, lanes: Lane[]): Promise<Signed
 		const chain: Signed[] = []
 		for (let i = 0; i < config.chainLen; i++) {
 			const outSeq = (vIn.seq ?? 0) + 1
+
+			const tBuild0 = performance.now()
 			const tx = await buildSpend(c, vIn, fIn, col)
-			const signed = await c.wallet.signTx(tx.to_hex())
+			totalBuildMs += performance.now() - tBuild0
+
+			const txHex = tx.to_hex()
+			tx.free()
+
+			const tSign0 = performance.now()
+			const signed = await c.wallet.signTx(txHex)
+			totalSignMs += performance.now() - tSign0
+
+			const tHash0 = performance.now()
 			const txId = Resolver.resolveTxHash(signed)
+			totalHashMs += performance.now() - tHash0
+
 			chain.push({ signed, txId, lane: l, i, trackKeys: [`${txId}#0`, `${txId}#1`] })
 			// chain forward: this tx's outputs are the next spend's inputs (deterministic, no node round-trip).
 			vIn = mkValidatorUtxo(c, txId, 0, outSeq)
 			fIn = mkFundingUtxo(txId, 1, c.walletAddress, c.fundLL)
 			done++
+
+			// Force Garbage Collector after each lane (150 txs) or every 200 txs to clean up the WebAssembly/V8 wrappers
+			if (done % 150 === 0 && global.gc) {
+				global.gc()
+			}
 		}
 		chains.push(chain)
-		if ((l + 1) % 50 === 0 || l + 1 === lanes.length) {
+		if ((l + 1) % 5 === 0 || l + 1 === lanes.length) {
 			const rate = done / ((Date.now() - t0) / 1000)
 			const etaS = (config.totalTxs - done) / Math.max(rate, 0.1)
-			log(`[presign] ${done}/${config.totalTxs} (${rate.toFixed(0)} tx/s, eta ${etaS.toFixed(0)}s)`)
+			const avgBuild = totalBuildMs / done
+			const avgSign = totalSignMs / done
+			const avgHash = totalHashMs / done
+			log(`[presign] ${done}/${config.totalTxs} (${rate.toFixed(0)} tx/s, eta ${etaS.toFixed(0)}s) | Avg times: Build: ${avgBuild.toFixed(1)}ms, Sign: ${avgSign.toFixed(1)}ms, Hash: ${avgHash.toFixed(1)}ms`)
 		}
 	}
 	log(`[presign] done in ${((Date.now() - t0) / 1000).toFixed(0)}s`)

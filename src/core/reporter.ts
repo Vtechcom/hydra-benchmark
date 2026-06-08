@@ -158,6 +158,116 @@ export function writeReport(input: ReportInput): ReportResult {
 	return { pass, summary }
 }
 
+export function writeSweepReport(input: ReportInput): ReportResult {
+	const { testcaseName, testcaseDescription, config, stats, meta, outDir } = input
+	const trackFrac = 0.8
+	const inWin = (ts: number, lo: number, hi: number) => ts >= lo && ts <= hi
+	const rows = stats.stepWindows.map(w => {
+		const durS = Math.max((w.fireEnd - w.fireStart) / 1000, 0.001)
+		const offeredTps = w.offered / durS
+		const validInWin = stats.validArrivals.filter(t => inWin(t, w.fireStart, w.fireEnd)).length
+		const confInWin = stats.snapArrivals.filter(s => inWin(s.ts, w.fireStart, w.fireEnd)).reduce((a, s) => a + s.n, 0)
+		const validTps = validInWin / durS
+		const confTps = confInWin / durS
+		const track = offeredTps > 0 ? validTps / offeredTps : 0
+		return {
+			tps: w.tps,
+			durS: +durS.toFixed(1),
+			offered: w.offered,
+			offeredTps: +offeredTps.toFixed(1),
+			validTps: +validTps.toFixed(1),
+			confTps: +confTps.toFixed(1),
+			track: +track.toFixed(2),
+			saturated: track < trackFrac
+		}
+	})
+
+	const tracking = rows.filter(r => !r.saturated)
+	const kneeRow = tracking.length ? tracking[tracking.length - 1] : undefined
+	const ceiling = Math.max(0, ...rows.map(r => r.validTps))
+	const knee = kneeRow ? kneeRow.tps : 0
+	const allTracked = rows.every(r => !r.saturated)
+	const summary = {
+		testcase: testcaseName,
+		kind: 'sweep',
+		stepSeconds: config.stepS,
+		steps: config.sweepSteps,
+		lanes: config.lanes,
+		chainLen: config.chainLen,
+		poolTxs: config.totalTxs,
+		kneeTps: knee,
+		sustainedCeilingValidTps: +ceiling.toFixed(1),
+		allStepsTracked: allTracked,
+		note: allTracked
+			? `node tracked every offered step up to ${Math.max(...config.sweepSteps)} TPS; raise BENCH_SWEEP to find the true ceiling`
+			: `node plateaus around ${ceiling.toFixed(0)} validTps; knee (last tracking step) = ${knee} TPS`,
+		rows,
+		meta,
+		head: { ws: config.ws, http: config.http },
+		totalInvalid: stats.invalid,
+		totalStaleInputRace: stats.staleInputRace,
+		timestamp: new Date().toISOString()
+	}
+
+	mkdirSync(outDir, { recursive: true })
+	writeFileSync(resolve(outDir, 'sweep.json'), JSON.stringify(summary, null, 2))
+	writeFileSync(
+		resolve(outDir, 'sweep-results.csv'),
+		[
+			'step_tps,dur_s,offered,offered_tps,valid_tps,confirm_tps,track,saturated',
+			...rows.map(r => `${r.tps},${r.durS},${r.offered},${r.offeredTps},${r.validTps},${r.confTps},${r.track},${r.saturated}`)
+		].join('\n') + '\n'
+	)
+
+	const table = [
+		'| Step TPS | dur s | offered | offeredTps | validTps | confTps | track | saturated |',
+		'|---|---|---|---|---|---|---|---|',
+		...rows.map(
+			r =>
+				`| ${r.tps} | ${r.durS} | ${r.offered} | ${r.offeredTps} | ${r.validTps} | ${r.confTps} | ${r.track} | ${r.saturated ? 'yes' : 'no'} |`
+		)
+	].join('\n')
+
+	writeFileSync(
+		resolve(outDir, 'sweep.generated.md'),
+		`# ${testcaseName} — Hydra in-head throughput sweep [auto-generated]
+
+> ${testcaseDescription}
+
+**Date:** ${summary.timestamp}
+
+## Knee
+
+- Knee (last step still tracking offered >= ${trackFrac}): **${knee} TPS**
+- Sustained validated ceiling: **${summary.sustainedCeilingValidTps} TPS**
+- ${summary.note}
+- Logic-reject invalid: ${stats.invalid}
+- Stale-input race (rig timing, excluded from knee): ${stats.staleInputRace}
+
+## Per-step offered-vs-validated
+
+${table}
+
+\`validTps\` = TxValid arrivals bucketed into the step's fire window divided by window seconds. \`track\` = validTps/offeredTps; below ${trackFrac} means the node no longer keeps up with the offered rate.
+
+## Reproduce
+
+\`\`\`bash
+HYDRA_WS=${config.ws} HYDRA_HTTP=${config.http} \\
+  BENCH_SWEEP="${config.sweepSteps.join(',')}" BENCH_STEP_S=${config.stepS} \\
+  pnpm bench --testcase ${testcaseName}
+\`\`\`
+
+Machine-readable summary: \`results/${testcaseName}/sweep.json\`.
+`
+	)
+
+	console.log(`\nSWEEP knee=${knee} TPS · sustained ceiling=${summary.sustainedCeilingValidTps} validTps · ${summary.note}`)
+	console.log(`sweep report → ${resolve(outDir, 'sweep.generated.md')}`)
+	console.log(`sweep summary → ${resolve(outDir, 'sweep.json')}`)
+	return { pass: allTracked, summary }
+}
+
 function renderMarkdown(p: {
 	testcaseName: string
 	testcaseDescription: string

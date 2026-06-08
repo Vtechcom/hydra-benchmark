@@ -35,6 +35,8 @@ export type Stats = {
 	validRaw: { nodeTs: number; localTs: number }[]
 	/** absolute ts of each SnapshotConfirmed + # tracked txs in it */
 	snapArrivals: { ts: number; n: number }[]
+	/** sweep mode: fire windows used for per-step arrival bucketing */
+	stepWindows: { tps: number; fireStart: number; fireEnd: number; offered: number }[]
 	firstFireTs: number
 	lastFireTs: number
 }
@@ -77,6 +79,7 @@ function emptyStats(): Stats {
 		validArrivals: [],
 		validRaw: [],
 		snapArrivals: [],
+		stepWindows: [],
 		firstFireTs: 0,
 		lastFireTs: 0
 	}
@@ -167,34 +170,54 @@ export async function fireAndMeasure(
 		}
 	})
 
+	const isSweep = config.sweepSteps.length > 1
+	const schedule = isSweep
+		? config.sweepSteps.map(stepTps => ({ tps: stepTps, count: Math.round(stepTps * config.stepS) }))
+		: [{ tps, count: order.length }]
 	const mode = inflightMax > 0 ? `closed-loop (in-flight ≤ ${inflightMax}, freed on ${inflightGate})` : 'open-loop'
-	console.log(`[fire] ${mode} · ${tps} TPS · ${order.length} txs · interval ${(1000 / tps).toFixed(2)}ms · gate P95 ≤ ${gateMs}ms`)
-	const intervalMs = 1000 / tps
+	console.log(
+		isSweep
+			? `[fire] SWEEP ${mode} · steps ${schedule.map(s => `${s.tps}tps×${s.count}`).join(' → ')} · pool ${order.length} txs`
+			: `[fire] ${mode} · ${tps} TPS · ${order.length} txs · interval ${(1000 / tps).toFixed(2)}ms · gate P95 ≤ ${gateMs}ms`
+	)
 	const startAt = nowMs()
-	for (let k = 0; k < order.length; k++) {
-		// closed-loop backpressure: block until a slot frees. await sleep() yields to the event loop ⇒
-		// ack handlers run and call releaseSlot. No-op when inflightMax = 0 (open-loop).
-		if (inflightMax > 0) while (inflight >= inflightMax) await sleep(2)
-		const slotStart = nowMs()
-		const item = order[k]
-		const now = nowMs()
-		fireTs.set(item.txId, now)
-		pendingTx.add(item.txId)
-		for (const key of item.trackKeys ?? []) keyToTx.set(key, item.txId)
-		if (inflightMax > 0) {
-			inflightTxs.add(item.txId)
-			inflight++
+	let k = 0
+	for (const step of schedule) {
+		const intervalMs = 1000 / step.tps
+		const stepFireStart = nowMs()
+		let stepOffered = 0
+		const end = Math.min(order.length, k + step.count)
+		for (; k < end; k++) {
+			// closed-loop backpressure: block until a slot frees. await sleep() yields to the event loop ⇒
+			// ack handlers run and call releaseSlot. No-op when inflightMax = 0 (open-loop / sweep).
+			if (inflightMax > 0) while (inflight >= inflightMax) await sleep(2)
+			const slotStart = nowMs()
+			const item = order[k]
+			const now = nowMs()
+			fireTs.set(item.txId, now)
+			pendingTx.add(item.txId)
+			for (const key of item.trackKeys ?? []) keyToTx.set(key, item.txId)
+			if (inflightMax > 0) {
+				inflightTxs.add(item.txId)
+				inflight++
+			}
+			if (!stats.firstFireTs) stats.firstFireTs = now
+			stats.lastFireTs = now
+			stats.submitted++
+			stepOffered++
+			client.newTx(item.signed)
+			if (stepOffered % step.tps === 0)
+				console.log(
+					`[fire] ${step.tps}tps t=${((nowMs() - startAt) / 1000).toFixed(0)}s offered=${stats.submitted} valid=${stats.valid} confirmed=${stats.confirmed} invalid=${stats.invalid} stale=${stats.staleInputRace} inflight=${inflight} snaps=${stats.snapshots}`
+				)
+			const drift = nowMs() - slotStart
+			if (drift < intervalMs) await sleep(intervalMs - drift)
 		}
-		if (!stats.firstFireTs) stats.firstFireTs = now
-		stats.lastFireTs = now
-		stats.submitted++
-		client.newTx(item.signed)
-		if ((k + 1) % tps === 0)
+		stats.stepWindows.push({ tps: step.tps, fireStart: stepFireStart, fireEnd: nowMs(), offered: stepOffered })
+		if (isSweep)
 			console.log(
-				`[fire] t=${((nowMs() - startAt) / 1000).toFixed(0)}s offered=${stats.submitted} valid=${stats.valid} confirmed=${stats.confirmed} invalid=${stats.invalid} stale=${stats.staleInputRace} inflight=${inflight} snaps=${stats.snapshots}`
+				`[sweep] step ${step.tps} TPS: offered=${stepOffered} cumValid=${stats.valid} cumConfirmed=${stats.confirmed} stale=${stats.staleInputRace} invalid=${stats.invalid}`
 			)
-		const drift = nowMs() - slotStart
-		if (drift < intervalMs) await sleep(intervalMs - drift)
 	}
 
 	console.log(`[fire] submit window closed; draining up to ${graceMs / 1000}s…`)

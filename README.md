@@ -25,12 +25,12 @@ cp .env.example .env        # then edit HYDRA_WS / HYDRA_HTTP if needed
 # 3. list testcases
 pnpm bench --list
 
-# 4. quick sanity (default profile is already small: 20 TPS × 6s × 40 lanes) — expect GATE PASS, low P95
-pnpm bench --testcase noop-transfer
-pnpm bench --testcase perp-state
+# 4. quick sanity (20 TPS × 6s × 40 lanes) — expect GATE PASS, low P95
+pnpm bench --testcase noop-transfer --smoke
+pnpm bench --testcase perp-state --smoke
 
-# 5. scale up via env (defaults are a small sanity profile: 20 TPS × 6s × 40 lanes)
-BENCH_TPS=200 BENCH_DURATION_S=30 BENCH_LANES=400 pnpm bench --testcase perp-state
+# 5. full R1 profile (default full profile is 200 TPS × 60s × 400 lanes)
+pnpm bench --testcase perp-state
 ```
 
 Booting a head and the full local walkthrough: [`docs/running-locally.md`](docs/running-locally.md).
@@ -46,7 +46,7 @@ pnpm bench --help
 | Flag | Meaning |
 |---|---|
 | `-t, --testcase <name>` | which testcase to run (default `perp-state`) |
-| `--smoke` | tag the run as a smoke run (the defaults are already the small profile, so this no longer changes sizing) |
+| `--smoke` | quick sanity profile: 20 TPS × 6s × 40 lanes |
 | `--independent` | pin chain length to 1 — every tx spends its own seed (isolates raw single-tx latency) |
 | `--list` | list registered testcases |
 
@@ -54,15 +54,17 @@ pnpm bench --help
 
 All optional; see [`.env.example`](.env.example). `BENCH_*` are primary; the old `R1_*` names are accepted as fallbacks.
 
-Defaults are a small sanity profile (20 TPS × 6s × 40 lanes); raise them via env for real runs. `.env` (loaded automatically) overrides these defaults; CLI/inline env overrides `.env`.
+Defaults follow the current R1 rig: full profile is 200 TPS × 60s × 400 lanes; `--smoke` is 20 TPS × 6s × 40 lanes. `.env` (loaded automatically) overrides these defaults; CLI/inline env overrides `.env`.
 
 | Env | Default | Meaning |
 |---|---|---|
-| `HYDRA_WS` / `HYDRA_HTTP` | `ws://localhost:4001` / `http://localhost:4001` | head endpoints |
-| `BENCH_TPS` | 20 | target submit rate |
-| `BENCH_DURATION_S` | 6 | fire-window seconds |
-| `BENCH_LANES` | 40 | independent seed lanes (keep ≥ TPS) |
+| `HYDRA_WS` / `HYDRA_HTTP` | `ws://localhost:4003` / `http://localhost:4003` | head endpoints |
+| `BENCH_TPS` | 200 full / 20 smoke | target submit rate |
+| `BENCH_DURATION_S` | 60 full / 6 smoke | fire-window seconds |
+| `BENCH_LANES` | 400 full / 40 smoke | independent seed lanes (keep ≥ TPS) |
 | `BENCH_CHAIN` | auto | pre-signed spends per lane |
+| `BENCH_SWEEP` | unset | comma-separated TPS steps for throughput-knee sweep, e.g. `24,60,120,200,300` |
+| `BENCH_STEP_S` | 12 | seconds per sweep step |
 | `BENCH_INFLIGHT_MAX` | 0 (open-loop) | closed-loop bound on un-acked txs (`K ≈ confirmTps × latency_s`) |
 | `BENCH_INFLIGHT_GATE` | `txvalid` | which ack frees a slot: `txvalid` \| `snapshot` |
 | `BENCH_GATE_MS` | 200 | P95 gate threshold |
@@ -73,9 +75,7 @@ Defaults are a small sanity profile (20 TPS × 6s × 40 lanes); raise them via e
 Example sweep to find the sustainable TPS ceiling:
 
 ```bash
-for tps in 50 100 200 400; do
-  BENCH_TPS=$tps BENCH_DURATION_S=30 BENCH_LANES=$((tps*3)) pnpm bench -t perp-state
-done
+BENCH_SWEEP="24,60,120,200,300" BENCH_STEP_S=12 pnpm bench -t perp-state
 ```
 
 ## Output

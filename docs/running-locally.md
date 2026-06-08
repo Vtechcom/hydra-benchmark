@@ -12,7 +12,7 @@ End-to-end: boot a Hydra head, point the harness at it, run a testcase, read the
 
 ```bash
 pnpm install
-cp .env.example .env     # edit HYDRA_WS / HYDRA_HTTP if your head isn't on :4001
+cp .env.example .env     # edit HYDRA_WS / HYDRA_HTTP if your head isn't on the default :4003
 ```
 
 The funding wallet must match `BENCH_MNEMONIC`. The default mnemonic is the pre-funded wallet of the offline devnet below — change it if your head funds a different wallet.
@@ -42,21 +42,21 @@ export HYDRA_WS=ws://localhost:4002 HYDRA_HTTP=http://localhost:4002
 
 ## 2. Sanity run (always do this first)
 
-The default profile is already small, so a plain run is the sanity check:
+Use the smoke profile for the first sanity check:
 
 ```bash
-pnpm bench --testcase noop-transfer   # non-Plutus floor — expect GATE PASS, P95 a few ms
-pnpm bench --testcase perp-state      # real validator — expect GATE PASS at 20 TPS
+pnpm bench --testcase noop-transfer --smoke   # non-Plutus floor — expect GATE PASS, P95 a few ms
+pnpm bench --testcase perp-state --smoke      # real validator — expect GATE PASS at 20 TPS
 ```
 
-The default run is small (40 lanes, 20 TPS, ~6 s) and finishes in well under a minute after pre-sign. If it fails, fix that before scaling up. (`--smoke` just tags the run; it no longer changes sizing.)
+The smoke run is small (40 lanes, 20 TPS, ~6 s) and finishes in well under a minute after pre-sign. If it fails, fix that before scaling up.
 
 ## 3. Full run
 
-The defaults are a small sanity profile (20 TPS × 6s × 40 lanes → 120 txs). Scale up via env for a real run:
+The default full profile follows the current R1 rig (200 TPS × 60s × 400 lanes → 12000 txs):
 
 ```bash
-BENCH_TPS=200 BENCH_DURATION_S=30 BENCH_LANES=400 pnpm bench --testcase perp-state   # 200 TPS × 30s → 6000 txs
+pnpm bench --testcase perp-state
 ```
 
 Pre-sign (serial WASM) takes minutes at full scale — it is **off the clock** and logged with an ETA. Then the timed fire window runs; stdout prints a per-second progress line and a final `GATE PASS/FAIL` line.
@@ -83,10 +83,11 @@ So the only two levers that shrink pre-signing are **`DURATION_S`** (the main on
 
 | Goal | TPS | DURATION | LANES | CHAIN (auto) | total txs |
 |---|---:|---:|---:|---:|---:|
-| **default** (sanity) | 20 | 6 | 40 | 3 | **120** |
+| smoke sanity | 20 | 6 | 40 | 3 | **120** |
 | quick dev | 50 | 20 | 100 | 10 | **1000** |
 | one sweep point | target | 30 | target × 2 | auto | target × 30 |
 | full gate (lean) | 200 | 30 | 400 | 15 | **6000** |
+| default full | 200 | 60 | 400 | 30 | **12000** |
 | honest P95 (closed-loop) | 200 | 30 | 200 | 30 | 6000 + `BENCH_INFLIGHT_MAX≈200` |
 
 ```bash
@@ -98,15 +99,13 @@ BENCH_TPS=200 BENCH_DURATION_S=30 BENCH_LANES=400 pnpm bench -t perp-state
 
 ## 4. Find the sustainable TPS ceiling (sweep)
 
-`confirmTps` in the summary is the real rate the node keeps up with. Sweep to find where P95 just crosses the gate:
+Run a throughput-knee sweep to find where TxValid throughput stops tracking offered throughput:
 
 ```bash
-for tps in 50 100 200 400; do
-  BENCH_TPS=$tps BENCH_DURATION_S=30 BENCH_LANES=$((tps*3)) pnpm bench -t perp-state \
-    > /tmp/sweep-$tps.log 2>&1
-  node -e "const s=require('./results/perp-state/summary.json');console.log('target',$tps,'→ confirmTps',s.confirmTps,'P95',s.txValidLatencyMs.p95+'ms','confirmed',s.confirmed+'/'+s.submitted,'invalid',s.invalid)"
-done
+BENCH_SWEEP="24,60,120,200,300" BENCH_STEP_S=12 pnpm bench -t perp-state
 ```
+
+Sweep output goes to `results/perp-state/sweep.json`, `sweep-results.csv`, and `sweep.generated.md`.
 
 `confirmTps` plateauing (stops rising as you raise the target) = the node ceiling.
 

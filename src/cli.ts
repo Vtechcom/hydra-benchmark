@@ -7,13 +7,14 @@
  *   pnpm bench --list                           # list registered testcases
  *
  * Env knobs: see .env.example (BENCH_TPS, BENCH_DURATION_S, BENCH_LANES,
- * BENCH_CHAIN, BENCH_INFLIGHT_MAX, BENCH_INFLIGHT_GATE, HYDRA_WS, HYDRA_HTTP, …).
+ * BENCH_CHAIN, BENCH_SWEEP, BENCH_STEP_S, BENCH_INFLIGHT_MAX,
+ * BENCH_INFLIGHT_GATE, HYDRA_WS, HYDRA_HTTP, …).
  */
 import { resolve } from 'node:path'
 import { parseArgs, resolveConfig } from './core/config'
 import { HydraClient } from './core/hydra'
 import { fireAndMeasure } from './core/runner'
-import { writeReport } from './core/reporter'
+import { writeReport, writeSweepReport } from './core/reporter'
 import { getTestcase, listTestcases } from './core/registry'
 import './testcases/index' // side-effect: registers all testcases
 import dotenv from 'dotenv'
@@ -41,7 +42,8 @@ Flags:
   -h, --help              this help
 
 Common env (see .env.example): HYDRA_WS, HYDRA_HTTP, BENCH_TPS, BENCH_DURATION_S,
-  BENCH_LANES, BENCH_CHAIN, BENCH_INFLIGHT_MAX, BENCH_INFLIGHT_GATE, BENCH_GATE_MS.`)
+  BENCH_LANES, BENCH_CHAIN, BENCH_SWEEP, BENCH_STEP_S, BENCH_INFLIGHT_MAX,
+  BENCH_INFLIGHT_GATE, BENCH_GATE_MS.`)
 }
 
 async function main(): Promise<void> {
@@ -58,12 +60,15 @@ async function main(): Promise<void> {
 	const outDir = config.outDir || resolve(process.cwd(), 'results', tc.name)
 
 	console.log(
-		`hydra-benchmark · testcase=${tc.name} · ${config.smoke ? 'SMOKE' : 'FULL'}${config.independent ? ' INDEPENDENT' : ''}` +
+		`hydra-benchmark · testcase=${tc.name} · ${config.smoke ? 'SMOKE' : 'FULL'}${config.independent ? ' INDEPENDENT' : ''}${config.sweepSteps.length > 1 ? ' SWEEP' : ''}` +
 			` · ${config.tps} TPS × ${config.durationS}s · ${config.lanes} lanes × ${config.chainLen} = ${config.totalTxs} txs` +
 			` · ${config.inflightMax > 0 ? `closed-loop(${config.inflightMax},${config.inflightGate})` : 'open-loop'} · WS ${config.ws}`
 	)
-	if (config.lanes < config.tps)
-		console.warn(`[warn] lanes (${config.lanes}) < TPS (${config.tps}): a lane is revisited every ${(config.lanes / config.tps).toFixed(2)}s < 1s — chained predecessor may not be applied yet ⇒ stale-input races. Raise BENCH_LANES.`)
+	const topTps = config.sweepSteps.length > 1 ? Math.max(...config.sweepSteps) : config.tps
+	if (config.sweepSteps.length > 1)
+		console.log(`[sweep] steps=${config.sweepSteps.join(',')} TPS · ${config.stepS}s each · pool=${config.totalTxs} (${config.lanes}×${config.chainLen})`)
+	if (config.lanes < topTps)
+		console.warn(`[warn] lanes (${config.lanes}) < top TPS (${topTps}): a lane is revisited every ${(config.lanes / topTps).toFixed(2)}s < 1s — chained predecessor may not be applied yet ⇒ stale-input races. Raise BENCH_LANES.`)
 
 	const client = new HydraClient(config.ws, config.http)
 	await client.connect()
@@ -74,7 +79,7 @@ async function main(): Promise<void> {
 		const prepCtx = { config, client, log }
 		const chains = await tc.prepare(prepCtx)
 		const stats = await fireAndMeasure(client, chains, config)
-		const { pass } = writeReport({
+		const reportInput = {
 			testcaseName: tc.name,
 			testcaseDescription: tc.description,
 			gate: tc.gate,
@@ -82,7 +87,8 @@ async function main(): Promise<void> {
 			stats,
 			meta: tc.meta ? tc.meta(prepCtx) : {},
 			outDir
-		})
+		}
+		const { pass } = config.sweepSteps.length > 1 ? writeSweepReport(reportInput) : writeReport(reportInput)
 		await client.disconnect()
 		process.exit(pass ? 0 : 1)
 	} catch (e) {
