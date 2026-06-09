@@ -5,69 +5,69 @@
   "mode": "chained",
   "loop": "open-loop",
   "gateMs": 200,
-  "targetTps": 20,
-  "durationS": 6,
+  "targetTps": 200,
+  "durationS": 30,
   "lanes": 40,
-  "chainLen": 3,
-  "totalTxs": 120,
+  "chainLen": 150,
+  "totalTxs": 6000,
   "warmupFrac": 0.2,
-  "submitted": 120,
-  "valid": 120,
+  "submitted": 6000,
+  "valid": 5229,
   "invalid": 0,
   "staleInputRace": 0,
-  "confirmed": 120,
-  "snapshots": 6,
-  "avgTxPerSnapshot": 20,
-  "offeredTps": 20.1,
-  "validTps": 20.1,
-  "confirmTps": 20.1,
+  "confirmed": 496,
+  "snapshots": 7,
+  "avgTxPerSnapshot": 70.9,
+  "offeredTps": 191.4,
+  "validTps": 166.8,
+  "confirmTps": 15.8,
   "saturated": false,
   "latencyValid": true,
   "txValidLatencyMs": {
-    "p50": 3895.751583,
-    "p95": 4740.163917,
-    "p99": 4881.918709,
-    "max": 4881.918709,
-    "steadySamples": 72,
-    "totalSamples": 120
+    "p50": 15481.090792000003,
+    "p95": 21686.632583,
+    "p99": 22063.158209000016,
+    "max": 22251.557292000012,
+    "steadySamples": 3715,
+    "totalSamples": 5229
   },
   "snapshotConfirmLatencyMs": {
-    "p50": 15961.407749999998,
-    "p95": 16764.674542,
-    "p99": 16913.904,
-    "max": 16913.904,
-    "steadySamples": 72,
-    "totalSamples": 120
+    "p50": 18462.712792000006,
+    "p95": 41993.47520799999,
+    "p99": 42084.73758300001,
+    "max": 42103.10737499999,
+    "steadySamples": 496,
+    "totalSamples": 496
   },
   "batching": {
     "burstGapMs": 250,
-    "txValidBursts": 7,
+    "txValidBursts": 20,
     "txValidBurstSize": {
-      "p50": 18,
-      "max": 43
+      "p50": 170,
+      "max": 818
     },
     "txValidInterBurstMs": {
-      "p50": 1776.206666,
-      "p95": 8609.3785,
-      "max": 8609.3785
+      "p50": 1947.3709999999846,
+      "p95": 5633.802541000012,
+      "max": 5633.802541000012
     },
     "snapshotIntervalMs": {
-      "p50": 1705.4307090000002,
-      "p95": 10564.169582999999,
-      "max": 10564.169582999999
+      "p50": 8610.326916999999,
+      "p95": 13186.122875000001,
+      "max": 13186.122875000001
     }
   },
   "nodeVsClient": {
-    "samples": 120,
+    "samples": 5229,
     "nodeEmitGapMs": {
-      "p50": 4,
-      "p95": 942,
-      "max": 8567
+      "p50": 2,
+      "p95": 6,
+      "max": 5572
     },
     "clientRecvGapMs": {
-      "p50": 0.013624999999592546,
-      "p95": 1039.9674159999995,
-      "max": 8567.857292000002
+      "p50": 0.9883329999865964,
+      "p95": 5.078582999994978,
+      "max": 5572.070208000019
     },
     "verdict": "both-continuous"
   },
@@ -82,5 +82,5 @@
     "ws": "ws://localhost:4003",
     "http": "http://localhost:4003"
   },
-  "timestamp": "2026-06-01T09:43:56.560Z"
+  "timestamp": "2026-06-02T09:08:01.683Z"
 }

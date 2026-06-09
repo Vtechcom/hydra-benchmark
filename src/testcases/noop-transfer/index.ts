@@ -87,14 +87,16 @@ async function presign(p: PrepareContext, c: Ctx, lanes: Utxo[]): Promise<Signed
 		const chain: Signed[] = []
 		for (let i = 0; i < config.chainLen; i++) {
 			const tx = await buildTransfer(c, input)
-			const signed = await c.wallet.signTx(tx.to_hex())
+			const txHex = tx.to_hex()
+			tx.free()
+			const signed = await c.wallet.signTx(txHex)
 			const txId = Resolver.resolveTxHash(signed)
 			chain.push({ signed, txId, lane: l, i, trackKeys: [`${txId}#0`] })
 			input = mkUtxo(txId, 0, c.walletAddress, c.laneLL) // chain forward off output #0
 			done++
 		}
 		chains.push(chain)
-		if ((l + 1) % 100 === 0 || l + 1 === lanes.length) {
+		if ((l + 1) % 5 === 0 || l + 1 === lanes.length) {
 			const rate = done / ((Date.now() - t0) / 1000)
 			log(`[presign] ${done}/${config.totalTxs} (${rate.toFixed(0)} tx/s)`)
 		}
