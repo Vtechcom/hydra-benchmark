@@ -8,7 +8,7 @@ End-to-end: boot a Hydra head, point the harness at it, run a testcase, read the
 |---|---|
 | Node.js | ≥ 22 (`node -v`) |
 | pnpm | `corepack enable && corepack prepare pnpm@latest --activate` |
-| A Hydra head | a running `hydra-node` with WS + HTTP reachable and an in-head funded wallet |
+| A Hydra head | booted from `infra/` (below), or any reachable `hydra-node` with an in-head funded wallet |
 
 ```bash
 pnpm install
@@ -19,26 +19,21 @@ The funding wallet must match `BENCH_MNEMONIC`. The default mnemonic is the pre-
 
 ## 1. Boot a Hydra head
 
-This repo benchmarks an **existing** head; it doesn't ship node infra. The simplest target is an **offline single-node** head (one participant, fee = 0, exec prices = 0 — a feasibility probe, not mainnet).
-
-If you have the `hydra-perps` repo checked out next to this one, its compose files boot exactly that:
+`infra/` ships the heads: an **offline single-node** head (one participant, fee = 0, exec prices = 0 — a feasibility probe, not mainnet), one directory per hydra-node version × host environment.
 
 ```bash
-# offline benchmark head (RAM-backed persistence)
-docker compose -f ../hydra-perps/infra/preprod-offline/docker-compose.yaml up -d
-
-# wait for headStatus:"Open"
-docker compose -f ../hydra-perps/infra/preprod-offline/docker-compose.yaml \
-  logs --tail=20 | grep -o 'headStatus[^,]*' | tail -1
+./infra/fetch-node.sh 2.3.0            # binary → infra/bin/hydra-node-2.3.0
+./infra/head.sh start --version 2.3.0  # wipes state, boots, waits for the seed UTxO
 ```
 
-That head exposes WS/HTTP on `:4002` and a pre-funded wallet (1 UTxO). Set:
+It listens on `:4003` — the default in `.env` — and seeds one pre-funded in-head UTxO at the `BENCH_MNEMONIC` address. `--port` moves it, `--env` selects native vs docker, `--keep-state` skips the wipe. Full reference: [`infra/README.md`](../infra/README.md).
 
 ```bash
-export HYDRA_WS=ws://localhost:4002 HYDRA_HTTP=http://localhost:4002
+./infra/head.sh status     # what's running
+./infra/head.sh stop --version 2.3.0
 ```
 
-> Bringing up your own head instead? Any `hydra-node` works — just make sure the head is **Open**, a wallet is funded **in-head**, and that wallet matches `BENCH_MNEMONIC`. Verify with `curl -s $HYDRA_HTTP/snapshot/utxo | head -c 200`.
+> Pointing at a head you booted yourself? Any `hydra-node` works — make sure it is **Open**, a wallet is funded **in-head**, and that wallet matches `BENCH_MNEMONIC`. Verify with `curl -s $HYDRA_HTTP/snapshot/utxo | head -c 200`. Its results are filed under whatever version it reports in Greetings.
 
 ## 2. Sanity run (always do this first)
 
@@ -105,27 +100,53 @@ Run a throughput-knee sweep to find where TxValid throughput stops tracking offe
 BENCH_SWEEP="24,60,120,200,300" BENCH_STEP_S=12 pnpm bench -t perp-state
 ```
 
-Sweep output goes to `results/perp-state/sweep.json`, `sweep-results.csv`, and `sweep.generated.md`.
+Sweep output goes to the run dir for the sweep profile — `results/<node-version>/<env>/perp-state/sweep-24-60-120-200-300tps-12s/run-NN/` — as `sweep.json`, `sweep-results.csv` and `sweep.generated.md`.
 
 `confirmTps` plateauing (stops rising as you raise the target) = the node ceiling.
 
-## 5. Honest P95 near the knee (closed-loop)
+## 5. Service time, not queue time
 
-Open-loop P95 at high TPS is inflated by **queue time**, not real confirm latency (see [interpreting-results.md](interpreting-results.md)). To measure the real cycle, bound in-flight txs:
+Every ordinary run is already closed-loop — the in-flight bound `K` is calibrated from a short warm-up so P50/P95 measure the work itself. Nothing to pass:
 
 ```bash
-# matching latency (slot freed on TxValid). K ≈ confirmTps × ~1s.
-BENCH_TPS=200 BENCH_INFLIGHT_MAX=200 BENCH_DURATION_S=60 pnpm bench -t perp-state
-
-# settlement latency (slot freed on SnapshotConfirmed)
-BENCH_TPS=200 BENCH_INFLIGHT_MAX=200 BENCH_INFLIGHT_GATE=snapshot BENCH_DURATION_S=60 pnpm bench -t perp-state
+pnpm bench -t perp-state          # [calibrate] K=20 — confirm ~101 TPS × target 200ms
 ```
 
-Sweep `K` from 1 (serial floor) upward until P95 crosses the gate — `K*` just before the knee is the optimal pipeline depth.
+To see the whole curve — the service-time floor at `K=1` and where queueing takes over — sweep `K`:
+
+```bash
+pnpm bench -t perp-state --latency
+```
+
+Measured on this rig (2.3.0, macOS arm64 native, snapshot-gated slots):
+
+| K | confirm TPS | TxValid P50 | snapshot P50 |
+|---:|---:|---:|---:|
+| 1 | 25.3 | **7.7 ms** | **36.9 ms** |
+| 16 | 99.6 | 52.4 | 150.0 |
+| 32 | 99.6 | 108.6 | 303.9 |
+| 128 | 120.8 | 344.9 | 937.4 |
+
+Throughput stops climbing around `K≈16–32` while latency keeps doubling with `K`. Everything past that is queue: the same node reports `37ms` or `937ms` snapshot P50 depending only on pipeline depth. Pick the operating point, then pin it with `BENCH_INFLIGHT_MAX=<K>` so runs are exactly reproducible.
+
+Use `--open-loop` only when saturation is the thing you want to observe (throughput ceiling / knee), and never quote its P95 as latency.
+
+## 6. Compare across versions
+
+Every run is filed under the version the node reports and the host it ran on, so version A/B is a matter of booting the other binary and re-running the same profile:
+
+```bash
+./infra/fetch-node.sh 2.2.0
+./infra/head.sh start --version 2.2.0
+pnpm bench -t perp-state
+pnpm compare -t perp-state       # median + min–max per version
+```
+
+Method, controls and what to expect: [`version-ab.md`](version-ab.md).
 
 ## Platform note: macOS vs Linux
 
-The `hydra-node` image is `linux/amd64`. On Apple Silicon it runs through Rosetta emulation, which caps sustained throughput (~16 TPS observed). To measure real high-TPS numbers, run the head on a **native x86_64 Linux** host (no emulation, no Docker-VM/VirtioFS). The harness itself is unaffected — only the node host matters.
+The `hydra-node` **image** is `linux/amd64`, and the binary embeds an amd64 `etcd` that crashes under emulation on Apple Silicon — so `infra/head.sh` runs a **native** binary there (`envs/native.sh`). Rosetta also caps sustained throughput (~16 TPS observed), so Mac numbers are fine for a *relative* A/B but are not ceilings. For real high-TPS numbers run the head on a **native x86_64 Linux** host (no emulation, no Docker-VM/VirtioFS). The harness itself is unaffected — only the node host matters.
 
 ## Troubleshooting
 
@@ -137,4 +158,4 @@ The `hydra-node` image is `linux/amd64`. On Apple Silicon it runs through Rosett
 | `TxInvalid` budget exceeded | redeemer exec units too low — raise them in the testcase's redeemer builder |
 | huge P95 but `invalid=0` | saturation artifact, not a logic problem — re-run closed-loop (`BENCH_INFLIGHT_MAX`) |
 | `confirmTps` low on Linux | check `docker stats` CPU; a single head is sequential — one core at ~100% = node-bound |
-| etcd `address already in use` on node restart | orphan etcd holds the listen port — `pkill -9 etcd` before re-start |
+| etcd `address already in use` on node restart | orphan etcd holds the listen port — `./infra/head.sh stop --version <v>` reaps it, then start again |

@@ -37,6 +37,12 @@ export type Stats = {
 	snapArrivals: { ts: number; n: number }[]
 	/** sweep mode: fire windows used for per-step arrival bucketing */
 	stepWindows: { tps: number; fireStart: number; fireEnd: number; offered: number }[]
+	/** `--latency` mode: one window per in-flight bound K, for per-K percentiles */
+	kWindows: { k: number; fireStart: number; fireEnd: number; offered: number }[]
+	/** the in-flight bound actually used (after auto-calibration); 0 = open-loop */
+	effectiveInflightMax: number
+	/** how the K was arrived at, for the report */
+	calibration?: { provisionalK: number; observedConfirmTps: number; targetLatencyMs: number; txs: number }
 	firstFireTs: number
 	lastFireTs: number
 }
@@ -80,9 +86,29 @@ function emptyStats(): Stats {
 		validRaw: [],
 		snapArrivals: [],
 		stepWindows: [],
+		kWindows: [],
+		effectiveInflightMax: 0,
 		firstFireTs: 0,
 		lastFireTs: 0
 	}
+}
+
+/** Wipe everything the calibration burst measured, keeping the object identity the ack handler closed over. */
+function resetMeasurements(stats: Stats): void {
+	stats.submitted = 0
+	stats.valid = 0
+	stats.invalid = 0
+	stats.staleInputRace = 0
+	stats.confirmed = 0
+	stats.snapshots = 0
+	stats.validSamples.length = 0
+	stats.samples.length = 0
+	stats.validArrivals.length = 0
+	stats.validRaw.length = 0
+	stats.snapArrivals.length = 0
+	stats.stepWindows.length = 0
+	stats.firstFireTs = 0
+	stats.lastFireTs = 0
 }
 
 export async function fireAndMeasure(
@@ -171,33 +197,100 @@ export async function fireAndMeasure(
 	})
 
 	const isSweep = config.sweepSteps.length > 1
-	const schedule = isSweep
-		? config.sweepSteps.map(stepTps => ({ tps: stepTps, count: Math.round(stepTps * config.stepS) }))
-		: [{ tps, count: order.length }]
-	const mode = inflightMax > 0 ? `closed-loop (in-flight ≤ ${inflightMax}, freed on ${inflightGate})` : 'open-loop'
+	const isLatency = config.latency && config.kSteps.length > 0
+
+	/** Drain acks so one phase's backlog cannot inflate the next phase's latency. */
+	const drain = async (timeoutMs: number) => {
+		const until = Date.now() + timeoutMs
+		while (Date.now() < until && pendingTx.size > 0) await sleep(100)
+	}
+
+	// The in-flight cap in force right now; each phase may set its own.
+	let cap = inflightMax
+	// Index into `order`: the calibration burst consumes from the same pool, so
+	// the measured run simply continues where the warm-up stopped.
+	let k = 0
+
+	/**
+	 * Auto-calibrate K so the reported P50/P95 is service time rather than queue
+	 * time. Little's Law: to hold latency at T, allow K ≈ throughput × T
+	 * in-flight. Throughput is measured by a short burst at a provisional K, then
+	 * everything that burst measured is discarded — only the K survives.
+	 *
+	 * Measuring at a provisional K under-estimates the node's ceiling, so the K
+	 * we derive errs low. That bias is the safe direction here: less queueing,
+	 * closer to true service time.
+	 */
+	if (config.inflightAuto && !isSweep && !isLatency) {
+		const provisionalK = 32
+		const calTxs = Math.min(Math.max(80, Math.round(order.length * 0.05)), Math.floor(order.length / 2))
+		console.log(`[calibrate] warm-up ${calTxs} txs at K=${provisionalK} to size the in-flight bound…`)
+		cap = provisionalK
+		const calStart = nowMs()
+		for (let i = 0; i < calTxs; i++, k++) {
+			while (inflight >= cap) await sleep(2)
+			const item = order[k]
+			fireTs.set(item.txId, nowMs())
+			pendingTx.add(item.txId)
+			for (const key of item.trackKeys ?? []) keyToTx.set(key, item.txId)
+			inflightTxs.add(item.txId)
+			inflight++
+			client.newTx(item.signed)
+		}
+		await drain(30_000)
+		const confirmed = stats.confirmed
+		const elapsedS = Math.max((nowMs() - calStart) / 1000, 0.001)
+		const observedConfirmTps = confirmed / elapsedS
+		cap = Math.max(1, Math.round((observedConfirmTps * config.targetLatencyMs) / 1000))
+		stats.calibration = { provisionalK, observedConfirmTps: +observedConfirmTps.toFixed(1), targetLatencyMs: config.targetLatencyMs, txs: calTxs }
+		console.log(
+			`[calibrate] K=${cap} — confirm ~${observedConfirmTps.toFixed(0)} TPS × target ${config.targetLatencyMs}ms (Little's Law); warm-up samples discarded`
+		)
+		// Late acks from the burst must not land in the measured run.
+		fireTs.clear()
+		pendingTx.clear()
+		validatedTx.clear()
+		keyToTx.clear()
+		inflightTxs.clear()
+		inflight = 0
+		resetMeasurements(stats)
+	}
+	stats.effectiveInflightMax = cap
+
+	type Phase = { tps: number; count: number; cap: number; paced: boolean }
+	const schedule: Phase[] = isLatency
+		? config.kSteps.map(kk => ({ tps, count: config.kStepTxs, cap: kk, paced: false }))
+		: isSweep
+			? config.sweepSteps.map(stepTps => ({ tps: stepTps, count: Math.round(stepTps * config.stepS), cap: 0, paced: true }))
+			: [{ tps, count: order.length - k, cap, paced: cap === 0 }]
+	const mode = cap > 0 ? `closed-loop (in-flight ≤ ${cap}, freed on ${inflightGate})` : 'open-loop'
 	console.log(
-		isSweep
-			? `[fire] SWEEP ${mode} · steps ${schedule.map(s => `${s.tps}tps×${s.count}`).join(' → ')} · pool ${order.length} txs`
-			: `[fire] ${mode} · ${tps} TPS · ${order.length} txs · interval ${(1000 / tps).toFixed(2)}ms · gate P95 ≤ ${gateMs}ms`
+		isLatency
+			? `[fire] LATENCY sweep · K ${config.kSteps.join(' → ')} · ${config.kStepTxs} txs each · freed on ${inflightGate} · gate P95 ≤ ${gateMs}ms`
+			: isSweep
+				? `[fire] SWEEP ${mode} · steps ${schedule.map(s => `${s.tps}tps×${s.count}`).join(' → ')} · pool ${order.length} txs`
+				: `[fire] ${mode} · ${order.length - k} txs${cap === 0 ? ` · ${tps} TPS · interval ${(1000 / tps).toFixed(2)}ms` : ''} · gate P95 ≤ ${gateMs}ms`
 	)
 	const startAt = nowMs()
-	let k = 0
 	for (const step of schedule) {
-		const intervalMs = 1000 / step.tps
+		// Closed-loop phases are self-pacing; adding a rate cap on top would put
+		// queue time back into the number the whole mode exists to remove.
+		const intervalMs = step.paced ? 1000 / step.tps : 0
+		cap = step.cap
 		const stepFireStart = nowMs()
 		let stepOffered = 0
 		const end = Math.min(order.length, k + step.count)
 		for (; k < end; k++) {
 			// closed-loop backpressure: block until a slot frees. await sleep() yields to the event loop ⇒
-			// ack handlers run and call releaseSlot. No-op when inflightMax = 0 (open-loop / sweep).
-			if (inflightMax > 0) while (inflight >= inflightMax) await sleep(2)
+			// ack handlers run and call releaseSlot. No-op when cap = 0 (open-loop / sweep).
+			if (cap > 0) while (inflight >= cap) await sleep(2)
 			const slotStart = nowMs()
 			const item = order[k]
 			const now = nowMs()
 			fireTs.set(item.txId, now)
 			pendingTx.add(item.txId)
 			for (const key of item.trackKeys ?? []) keyToTx.set(key, item.txId)
-			if (inflightMax > 0) {
+			if (cap > 0) {
 				inflightTxs.add(item.txId)
 				inflight++
 			}
@@ -212,6 +305,13 @@ export async function fireAndMeasure(
 				)
 			const drift = nowMs() - slotStart
 			if (drift < intervalMs) await sleep(intervalMs - drift)
+		}
+		if (isLatency) {
+			// Settle this K fully before the next one: a leftover backlog would be
+			// charged to the next K and smear the whole curve upward.
+			await drain(30_000)
+			stats.kWindows.push({ k: step.cap, fireStart: stepFireStart, fireEnd: nowMs(), offered: stepOffered })
+			console.log(`[latency] K=${step.cap}: offered=${stepOffered} confirmed=${stats.confirmed} snaps=${stats.snapshots}`)
 		}
 		stats.stepWindows.push({ tps: step.tps, fireStart: stepFireStart, fireEnd: nowMs(), offered: stepOffered })
 		if (isSweep)

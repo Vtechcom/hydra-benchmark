@@ -1,0 +1,144 @@
+{
+  "testcase": "perp-state",
+  "kind": "latency",
+  "nodeVersion": "2.3.0-ef833d8a",
+  "nodeVersionRaw": "2.3.0-ef833d8a07d412a5a58cf1976afd4e81866ac4df",
+  "env": "macos-arm64-native",
+  "profile": "latency-K1-128-150tx-snapshot",
+  "runId": "run-01",
+  "head": {
+    "ws": "ws://localhost:4003",
+    "http": "http://localhost:4003"
+  },
+  "gatedOn": "txvalid",
+  "gateMs": 200,
+  "inflightGate": "snapshot",
+  "kSteps": [
+    1,
+    2,
+    4,
+    8,
+    16,
+    32,
+    64,
+    128
+  ],
+  "txsPerStep": 150,
+  "serviceTimeMs": {
+    "k": 1,
+    "txValidP50": 7.7,
+    "txValidP95": 16.2,
+    "snapshotP50": 36.9,
+    "snapshotP95": 47.1
+  },
+  "knee": {
+    "k": 16,
+    "gatedP95": 101.3,
+    "confirmTps": 99.6
+  },
+  "peakConfirmTps": {
+    "k": 64,
+    "confirmTps": 121.6,
+    "gatedP95": 407.3
+  },
+  "rows": [
+    {
+      "k": 1,
+      "offered": 150,
+      "confirmed": 150,
+      "confirmTps": 25.3,
+      "txValidP50": 7.7,
+      "txValidP95": 16.2,
+      "snapshotP50": 36.9,
+      "snapshotP95": 47.1,
+      "samples": 150
+    },
+    {
+      "k": 2,
+      "offered": 150,
+      "confirmed": 150,
+      "confirmTps": 34.4,
+      "txValidP50": 18.4,
+      "txValidP95": 24.8,
+      "snapshotP50": 55.1,
+      "snapshotP95": 65,
+      "samples": 150
+    },
+    {
+      "k": 4,
+      "offered": 150,
+      "confirmed": 150,
+      "confirmTps": 58.5,
+      "txValidP50": 22.4,
+      "txValidP95": 34.7,
+      "snapshotP50": 64,
+      "snapshotP95": 91.7,
+      "samples": 150
+    },
+    {
+      "k": 8,
+      "offered": 150,
+      "confirmed": 150,
+      "confirmTps": 88.7,
+      "txValidP50": 26.9,
+      "txValidP95": 45.4,
+      "snapshotP50": 84.6,
+      "snapshotP95": 126.7,
+      "samples": 150
+    },
+    {
+      "k": 16,
+      "offered": 150,
+      "confirmed": 150,
+      "confirmTps": 99.6,
+      "txValidP50": 52.4,
+      "txValidP95": 101.3,
+      "snapshotP50": 150,
+      "snapshotP95": 179.4,
+      "samples": 150
+    },
+    {
+      "k": 32,
+      "offered": 150,
+      "confirmed": 150,
+      "confirmTps": 99.6,
+      "txValidP50": 108.6,
+      "txValidP95": 206.1,
+      "snapshotP50": 303.9,
+      "snapshotP95": 324.3,
+      "samples": 150
+    },
+    {
+      "k": 64,
+      "offered": 150,
+      "confirmed": 150,
+      "confirmTps": 121.6,
+      "txValidP50": 183.3,
+      "txValidP95": 407.3,
+      "snapshotP50": 531.4,
+      "snapshotP95": 648.8,
+      "samples": 150
+    },
+    {
+      "k": 128,
+      "offered": 150,
+      "confirmed": 150,
+      "confirmTps": 120.8,
+      "txValidP50": 344.9,
+      "txValidP95": 806.5,
+      "snapshotP50": 937.4,
+      "snapshotP95": 1127.3,
+      "samples": 150
+    }
+  ],
+  "meta": {
+    "validatorTitle": "perp_state.perp_state.spend",
+    "validatorHash": "589a06302b8c412c58e39e904c670affd5ef8ef7e910617b94bbb1e0",
+    "validatorAddress": "addr_test1wpvf5p3s9wxyztzcuw0fqnr8ptlatmuw7l53qctmjjamrcqsklgl5",
+    "operatorVkh": "a8817721ee8a283156d7638de0e17540b97df1e9e85c6b90fb435868",
+    "note": "single-node devnet — multi-party confirm latency not captured; in-head exec-unit price = 0"
+  },
+  "totalInvalid": 0,
+  "totalStaleInputRace": 0,
+  "timestamp": "2026-07-27T07:52:41.627Z"
+}

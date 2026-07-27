@@ -9,17 +9,17 @@ importers:
   .:
     dependencies:
       '@hydra-sdk/bridge':
-        specifier: ^1.3.1
-        version: 1.3.1(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)
+        specifier: ^2.0.0
+        version: 2.0.0(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)
       '@hydra-sdk/cardano-wasm':
-        specifier: ^0.0.7
-        version: 0.0.7
+        specifier: ^1.0.0
+        version: 1.0.0
       '@hydra-sdk/core':
-        specifier: ^1.3.2
-        version: 1.3.2(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)
+        specifier: ^1.4.1
+        version: 1.4.1(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)
       '@hydra-sdk/transaction':
-        specifier: ^1.1.8
-        version: 1.1.8(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)
+        specifier: ^1.2.1
+        version: 1.2.1(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -276,24 +276,20 @@ packages:
       '@harmoniclabs/pair': ^1.0.0
       '@harmoniclabs/plutus-data': ^1.2.4
 
-  '@hydra-sdk/bridge@1.3.1':
-    resolution: {integrity: sha512-FMVdlxQKc0cIrwMt6OHqDgZpUM1Fj/HNBQTVaC0Mi34nhNGF9fREYJNZi3qQ0u9Vd+ElG1us4VS0UpSBmPoyPA==}
+  '@hydra-sdk/bridge@2.0.0':
+    resolution: {integrity: sha512-SALUPP+7By2ZPhwuaDdyxgDl8ZPagcBqIgEB0hQH5Jowlo/1EY3W9JOneN/slG9RdzV3A7dEaNXnxDE/yIqwRQ==}
     engines: {node: '>=10'}
 
-  '@hydra-sdk/cardano-wasm@0.0.7':
-    resolution: {integrity: sha512-1QVdVaa52aJBw0quOsA7AgCcQlySK75R18CUShrOPjt6odYCMOLLDpEVSpAxFW2OjR2JhsexEJ4rf/wb3IoBsg==}
+  '@hydra-sdk/cardano-wasm@1.0.0':
+    resolution: {integrity: sha512-07zbhEdmHjWjkBUb5C47KXEqNog/8qf0ZMzZrnPjRjz2Zrc1ljqEA5aCqC3+mpBdXwuq9mGLOYqOyVGOcdP9sQ==}
     engines: {node: '>=18'}
 
-  '@hydra-sdk/core@1.3.0':
-    resolution: {integrity: sha512-tWAyTifY8TMQjKs+Do7H7ChBKc5W+WawNTKm+kG9vSG4uBQTCtrNVSMT0pjHVjdLIxnARAUh6QvxDXt9F85wWQ==}
+  '@hydra-sdk/core@1.4.1':
+    resolution: {integrity: sha512-uiKB+w0vVlt1swOIyaYOwKFL2NXQNYh/IQD28YlMI0fp1oPfAghYPDMFZym2yrrBg9KQsPHlbXvI60D03jvaNg==}
     engines: {node: '>=10'}
 
-  '@hydra-sdk/core@1.3.2':
-    resolution: {integrity: sha512-9EtljzVeVdO+D27YlFjxHvzNcvZQtncImkll7EZcem95GGsnnjPVzIta+0NusgBQGoUo+OeZVywfo6So2Fnl0g==}
-    engines: {node: '>=10'}
-
-  '@hydra-sdk/transaction@1.1.8':
-    resolution: {integrity: sha512-7Qq/2i+6SqT4hGwrQMC8ibUbKJAWQakIjBqtYWqclxP9E1PiNll/BtP8JDHtPiTp4D/LKf20JpmuZ6uq32g+TQ==}
+  '@hydra-sdk/transaction@1.2.1':
+    resolution: {integrity: sha512-IkhwBueyLRvGBiz00JOsE5ZnU0/E+KElvRlJglUAX0qfji5YK2HBNorklO7q2DXdVScTNX9stfEzciMey9F3Gg==}
     engines: {node: '>=10'}
 
   '@noble/hashes@1.8.0':
@@ -661,10 +657,10 @@ snapshots:
       '@harmoniclabs/plutus-data': 1.2.6(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)
       '@harmoniclabs/uint8array-utils': 1.0.4
 
-  '@hydra-sdk/bridge@1.3.1(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)':
+  '@hydra-sdk/bridge@2.0.0(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)':
     dependencies:
-      '@hydra-sdk/cardano-wasm': 0.0.7
-      '@hydra-sdk/core': 1.3.0(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)
+      '@hydra-sdk/cardano-wasm': 1.0.0
+      '@hydra-sdk/core': 1.4.1(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)
       axios: 1.9.0
       bip39: 3.1.0
       chalk: 5.6.2
@@ -679,18 +675,18 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@hydra-sdk/cardano-wasm@0.0.7':
+  '@hydra-sdk/cardano-wasm@1.0.0':
     dependencies:
       '@emurgo/cardano-serialization-lib-asmjs': 14.1.2
       '@emurgo/cardano-serialization-lib-browser': 14.1.2
       '@emurgo/cardano-serialization-lib-nodejs': 14.1.2
 
-  '@hydra-sdk/core@1.3.0(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)':
+  '@hydra-sdk/core@1.4.1(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)':
     dependencies:
       '@harmoniclabs/crypto': 0.3.0-dev0
       '@harmoniclabs/plutus-data': 1.2.6(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)
       '@harmoniclabs/uplc': 1.4.1(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/crypto@0.3.0-dev0)(@harmoniclabs/pair@1.0.0)(@harmoniclabs/plutus-data@1.2.6(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6))
-      '@hydra-sdk/cardano-wasm': 0.0.7
+      '@hydra-sdk/cardano-wasm': 1.0.0
       '@scure/base': 1.2.6
       axios: 1.9.0
       bip39: 3.1.0
@@ -701,26 +697,10 @@ snapshots:
       - '@harmoniclabs/pair'
       - debug
 
-  '@hydra-sdk/core@1.3.2(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)':
+  '@hydra-sdk/transaction@1.2.1(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)':
     dependencies:
-      '@harmoniclabs/crypto': 0.3.0-dev0
-      '@harmoniclabs/plutus-data': 1.2.6(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)
-      '@harmoniclabs/uplc': 1.4.1(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/crypto@0.3.0-dev0)(@harmoniclabs/pair@1.0.0)(@harmoniclabs/plutus-data@1.2.6(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6))
-      '@hydra-sdk/cardano-wasm': 0.0.7
-      '@scure/base': 1.2.6
-      axios: 1.9.0
-      bip39: 3.1.0
-      cbor-x: 1.6.0
-    transitivePeerDependencies:
-      - '@harmoniclabs/bytestring'
-      - '@harmoniclabs/cbor'
-      - '@harmoniclabs/pair'
-      - debug
-
-  '@hydra-sdk/transaction@1.1.8(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)':
-    dependencies:
-      '@hydra-sdk/cardano-wasm': 0.0.7
-      '@hydra-sdk/core': 1.3.0(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)
+      '@hydra-sdk/cardano-wasm': 1.0.0
+      '@hydra-sdk/core': 1.4.1(@harmoniclabs/bytestring@1.0.0)(@harmoniclabs/cbor@1.6.6)(@harmoniclabs/pair@1.0.0)
       '@scure/base': 1.2.6
       bip39: 3.1.0
       json-bigint: 1.0.0

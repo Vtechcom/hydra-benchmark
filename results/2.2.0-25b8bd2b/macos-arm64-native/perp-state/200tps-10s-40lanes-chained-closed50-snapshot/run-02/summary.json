@@ -1,0 +1,91 @@
+{
+  "testcase": "perp-state",
+  "nodeVersion": "2.2.0-25b8bd2b",
+  "nodeVersionRaw": "2.2.0-25b8bd2b54cdc28aed491346dca383f3c8001077",
+  "env": "macos-arm64-native",
+  "profile": "200tps-10s-40lanes-chained-closed50-snapshot",
+  "runId": "run-02",
+  "head": {
+    "ws": "ws://localhost:4004",
+    "http": "http://localhost:4004"
+  },
+  "decision": "GATE PASS",
+  "gatedOn": "txvalid",
+  "mode": "chained",
+  "loop": "closed-loop(50,snapshot)",
+  "gateMs": 200,
+  "targetTps": 200,
+  "durationS": 10,
+  "lanes": 40,
+  "chainLen": 50,
+  "totalTxs": 2000,
+  "warmupFrac": 0.2,
+  "submitted": 2000,
+  "valid": 2000,
+  "invalid": 0,
+  "staleInputRace": 0,
+  "confirmed": 2000,
+  "snapshots": 118,
+  "avgTxPerSnapshot": 16.9,
+  "offeredTps": 108.2,
+  "validTps": 108.2,
+  "confirmTps": 108.2,
+  "saturated": false,
+  "latencyValid": true,
+  "txValidLatencyMs": {
+    "p50": 122.97337499999958,
+    "p95": 190.60304200000064,
+    "p99": 220.29220899999927,
+    "max": 238.83654099999876,
+    "steadySamples": 1182,
+    "totalSamples": 2000
+  },
+  "snapshotConfirmLatencyMs": {
+    "p50": 385.18133399999897,
+    "p95": 470.192665999999,
+    "p99": 500.1477500000001,
+    "max": 522.9501249999994,
+    "steadySamples": 1182,
+    "totalSamples": 2000
+  },
+  "batching": {
+    "burstGapMs": 250,
+    "txValidBursts": 1,
+    "txValidBurstSize": {
+      "p50": 2000,
+      "max": 2000
+    },
+    "txValidInterBurstMs": {
+      "p50": 0,
+      "p95": 0,
+      "max": 0
+    },
+    "snapshotIntervalMs": {
+      "p50": 196.33024999999998,
+      "p95": 250.48562500000116,
+      "max": 308.01224999999977
+    }
+  },
+  "nodeVsClient": {
+    "samples": 2000,
+    "nodeEmitGapMs": {
+      "p50": 6,
+      "p95": 33,
+      "max": 97
+    },
+    "clientRecvGapMs": {
+      "p50": 6.11370800000077,
+      "p95": 32.510041999999885,
+      "max": 97.12037499999951
+    },
+    "verdict": "both-continuous"
+  },
+  "meta": {
+    "validatorTitle": "perp_state.perp_state.spend",
+    "validatorHash": "589a06302b8c412c58e39e904c670affd5ef8ef7e910617b94bbb1e0",
+    "validatorAddress": "addr_test1wpvf5p3s9wxyztzcuw0fqnr8ptlatmuw7l53qctmjjamrcqsklgl5",
+    "operatorVkh": "a8817721ee8a283156d7638de0e17540b97df1e9e85c6b90fb435868",
+    "note": "single-node devnet — multi-party confirm latency not captured; in-head exec-unit price = 0"
+  },
+  "timestamp": "2026-07-27T07:36:52.884Z"
+}

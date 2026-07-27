@@ -32,6 +32,9 @@ export function envStr(env: NodeJS.ProcessEnv, keys: string[], def: string): str
 
 export type InflightGate = 'txvalid' | 'snapshot'
 
+/** K sweep for `--latency`: doubling from serial (K=1) upward. */
+const DEFAULT_K_STEPS = [1, 2, 4, 8, 16, 32, 64, 128]
+
 export type BenchConfig = {
 	testcase: string
 	smoke: boolean
@@ -48,8 +51,17 @@ export type BenchConfig = {
 	warmupFrac: number
 	/** gate P95 threshold (ms); overrides the testcase default when set on the CLI/env */
 	gateMs: number
+	/** in-flight bound K; 0 = open-loop. Meaningless while `inflightAuto` is set — the runner calibrates it. */
 	inflightMax: number
+	/** K was not pinned: calibrate it from a warm-up burst so P95 measures service time, not queue time. */
+	inflightAuto: boolean
+	/** Little's-Law target the auto-calibrator aims at (ms). */
+	targetLatencyMs: number
 	inflightGate: InflightGate
+	/** `--latency`: sweep K instead of a single run — service-time floor at K=1, then the queueing knee. */
+	latency: boolean
+	kSteps: number[]
+	kStepTxs: number
 	graceMs: number
 	ws: string
 	http: string
@@ -63,16 +75,20 @@ export type CliArgs = {
 	testcase?: string
 	smoke: boolean
 	independent: boolean
+	openLoop: boolean
+	latency: boolean
 	list: boolean
 	help: boolean
 }
 
 export function parseArgs(argv: string[]): CliArgs {
-	const args: CliArgs = { smoke: false, independent: false, list: false, help: false }
+	const args: CliArgs = { smoke: false, independent: false, openLoop: false, latency: false, list: false, help: false }
 	for (let i = 0; i < argv.length; i++) {
 		const a = argv[i]
 		if (a === '--smoke') args.smoke = true
 		else if (a === '--independent') args.independent = true
+		else if (a === '--open-loop') args.openLoop = true
+		else if (a === '--latency') args.latency = true
 		else if (a === '--list') args.list = true
 		else if (a === '--help' || a === '-h') args.help = true
 		else if (a === '--testcase' || a === '-t') args.testcase = argv[++i]
@@ -102,6 +118,26 @@ export function resolveConfig(args: CliArgs, env: NodeJS.ProcessEnv = process.en
 	const tps = envNum(env, ['BENCH_TPS', 'R1_TPS'], smoke ? 20 : 200)
 	const durationS = envNum(env, ['BENCH_DURATION_S', 'R1_DURATION_S'], smoke ? 6 : 60)
 
+	const latency = args.latency && !isSweep
+	const kSteps = firstEnv(env, ['BENCH_K_SWEEP'], '')
+		.split(',')
+		.map(s => Number(s.trim()))
+		.filter(n => n >= 1)
+	const kStepTxs = envNum(env, ['BENCH_K_STEP_TXS'], smoke ? 60 : 200)
+	const kStepsResolved = latency ? (kSteps.length ? kSteps : DEFAULT_K_STEPS) : []
+
+	/**
+	 * Loop mode. Closed-loop is the DEFAULT because open-loop percentiles under
+	 * saturation are queue time, not service time — the number people actually
+	 * want. `--open-loop` (or an explicit `BENCH_INFLIGHT_MAX=0`) opts back in,
+	 * and a TPS sweep is open-loop by construction since it deliberately drives
+	 * the node past its knee.
+	 */
+	const inflightRaw = firstEnv(env, ['BENCH_INFLIGHT_MAX', 'R1_INFLIGHT_MAX'], 'auto').trim()
+	const explicitOpenLoop = args.openLoop || inflightRaw === '0'
+	const inflightAuto = !isSweep && !latency && !explicitOpenLoop && (inflightRaw === '' || inflightRaw.toLowerCase() === 'auto')
+	const inflightMax = isSweep || latency || explicitOpenLoop || inflightAuto ? 0 : Number(inflightRaw)
+
 	const lanes = envNum(
 		env,
 		['BENCH_LANES', 'R1_LANES'],
@@ -115,11 +151,16 @@ export function resolveConfig(args: CliArgs, env: NodeJS.ProcessEnv = process.en
 					? 40
 					: 400
 	)
-	const chainLen = isSweep
-		? Math.max(1, Math.ceil(sweepTotal / lanes))
-		: independent
-			? 1
-			: envNum(env, ['BENCH_CHAIN', 'R1_CHAIN'], Math.max(1, Math.ceil((tps * durationS) / lanes)))
+	// A K sweep needs kStepTxs transactions per step and nothing else — the pool
+	// is sized by the sweep, not by TPS × duration (there is no target rate).
+	const latencyTotal = kStepsResolved.length * kStepTxs
+	const chainLen = latency
+		? Math.max(1, Math.ceil(latencyTotal / lanes))
+		: isSweep
+			? Math.max(1, Math.ceil(sweepTotal / lanes))
+			: independent
+				? 1
+				: envNum(env, ['BENCH_CHAIN', 'R1_CHAIN'], Math.max(1, Math.ceil((tps * durationS) / lanes)))
 
 	return {
 		testcase: args.testcase ?? 'perp-state',
@@ -134,8 +175,13 @@ export function resolveConfig(args: CliArgs, env: NodeJS.ProcessEnv = process.en
 		totalTxs: lanes * chainLen,
 		warmupFrac: envNum(env, ['BENCH_WARMUP_FRAC', 'R1_WARMUP_FRAC'], 0.2),
 		gateMs: envNum(env, ['BENCH_GATE_MS', 'R1_GATE_MS'], 200),
-		inflightMax: isSweep ? 0 : envNum(env, ['BENCH_INFLIGHT_MAX', 'R1_INFLIGHT_MAX'], 0),
+		inflightMax,
+		inflightAuto,
+		targetLatencyMs: envNum(env, ['BENCH_TARGET_LATENCY_MS'], envNum(env, ['BENCH_GATE_MS', 'R1_GATE_MS'], 200)),
 		inflightGate: envStr(env, ['BENCH_INFLIGHT_GATE', 'R1_INFLIGHT_GATE'], 'txvalid') as InflightGate,
+		latency,
+		kSteps: kStepsResolved,
+		kStepTxs,
 		graceMs: envNum(env, ['BENCH_GRACE_MS', 'R1_GRACE_MS'], 20_000),
 		ws: envStr(env, ['HYDRA_WS'], 'ws://localhost:4003'),
 		http: envStr(env, ['HYDRA_HTTP'], 'http://localhost:4003'),

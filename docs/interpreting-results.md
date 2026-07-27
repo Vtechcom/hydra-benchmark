@@ -1,6 +1,6 @@
 # Interpreting results
 
-Every run prints a final line and writes `results/<testcase>/summary.json` + `report.generated.md`. This doc explains what each number means and the traps to avoid.
+Every run prints a final line and writes `summary.json` + `report.generated.md` into its run dir `results/<node-version>/<env>/<testcase>/<profile>/run-NN/` (plus a row in `results/index.csv`). This doc explains what each number means and the traps to avoid.
 
 ## The final line
 
@@ -41,7 +41,19 @@ Open-loop firing at a TPS the node can't sustain builds an unbounded backlog. Th
 - `summary.saturated = true` (validated < 80% of offered), or
 - `latencyValid = false` / `fellBack` (no samples landed in the steady window).
 
-Fix: re-run **closed-loop** (`BENCH_INFLIGHT_MAX=K`, `K ≈ confirmTps × ~1s`). Bounded in-flight makes submit-rate track confirm-rate, so P95 reflects one real confirm cycle. This is client-side backpressure for *honest measurement* — not a substitute for node-side backpressure.
+Fix: don't fire open-loop. **Closed-loop is the default** precisely because of this trap — the harness calibrates an in-flight bound `K ≈ confirmTps × target latency`, so submit-rate tracks confirm-rate and P95 reflects one real cycle. This is client-side backpressure for *honest measurement*, not a substitute for node-side backpressure. `--open-loop` opts back in when saturation itself is what you want to observe.
+
+### …and closed-loop still queues if K is too high
+
+Bounded is not the same as unqueued. Service time is the `K→1` limit; every extra in-flight transaction adds waiting on top. Measured on one 2.3.0 head, `perp-state`:
+
+| K | confirm TPS | snapshot P50 |
+|---:|---:|---:|
+| 1 | 25.3 | **36.9 ms** |
+| 16 | 99.6 | 150.0 ms |
+| 128 | 120.8 | **937.4 ms** |
+
+Same node, same workload, 25× spread in "latency". Throughput flattens near `K≈16–32` while latency keeps growing linearly — past that point you are measuring the queue again, just a bounded one. `pnpm bench --latency` sweeps `K` and reports both the service-time floor and the knee; quote a P95 together with the `K` it was taken at.
 
 ## Stale-input races ≠ rejects
 

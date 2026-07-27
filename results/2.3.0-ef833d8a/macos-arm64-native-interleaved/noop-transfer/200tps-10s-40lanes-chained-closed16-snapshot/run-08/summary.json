@@ -1,0 +1,91 @@
+{
+  "testcase": "noop-transfer",
+  "nodeVersion": "2.3.0-ef833d8a",
+  "nodeVersionRaw": "2.3.0-ef833d8a07d412a5a58cf1976afd4e81866ac4df",
+  "env": "macos-arm64-native-interleaved",
+  "profile": "200tps-10s-40lanes-chained-closed16-snapshot",
+  "runId": "run-08",
+  "head": {
+    "ws": "ws://localhost:4003",
+    "http": "http://localhost:4003"
+  },
+  "decision": "GATE PASS",
+  "gatedOn": "txvalid",
+  "mode": "chained",
+  "loop": "closed-loop(16,snapshot)",
+  "inflightMax": 16,
+  "inflightCalibration": null,
+  "gateMs": 200,
+  "targetTps": 200,
+  "durationS": 10,
+  "lanes": 40,
+  "chainLen": 50,
+  "totalTxs": 2000,
+  "warmupFrac": 0.2,
+  "submitted": 2000,
+  "valid": 2000,
+  "invalid": 0,
+  "staleInputRace": 0,
+  "confirmed": 2000,
+  "snapshots": 250,
+  "avgTxPerSnapshot": 8,
+  "offeredTps": 123.9,
+  "validTps": 123.9,
+  "confirmTps": 123.9,
+  "saturated": false,
+  "latencyValid": true,
+  "txValidLatencyMs": {
+    "p50": 52.193709000001036,
+    "p95": 98.25766600000134,
+    "p99": 104.60549999999967,
+    "max": 129.07591700000012,
+    "steadySamples": 1200,
+    "totalSamples": 2000
+  },
+  "snapshotConfirmLatencyMs": {
+    "p50": 127.60125000000153,
+    "p95": 141.47537499999999,
+    "p99": 163.7752079999991,
+    "max": 164.00129099999867,
+    "steadySamples": 1200,
+    "totalSamples": 2000
+  },
+  "batching": {
+    "burstGapMs": 250,
+    "txValidBursts": 1,
+    "txValidBurstSize": {
+      "p50": 2000,
+      "max": 2000
+    },
+    "txValidInterBurstMs": {
+      "p50": 0,
+      "p95": 0,
+      "max": 0
+    },
+    "snapshotIntervalMs": {
+      "p50": 43.97979199999827,
+      "p95": 113.75066699999843,
+      "max": 146.69283300000097
+    }
+  },
+  "nodeVsClient": {
+    "samples": 2000,
+    "nodeEmitGapMs": {
+      "p50": 6,
+      "p95": 25,
+      "max": 43
+    },
+    "clientRecvGapMs": {
+      "p50": 5.746208000000479,
+      "p95": 24.87575000000288,
+      "max": 43.60345899999811
+    },
+    "verdict": "both-continuous"
+  },
+  "meta": {
+    "wallet": "addr_test1qz5gzaepa69zsv2k6a3cmc8pw4qtjl03a859c6usldp4s6r5gw88l78t4wdzqzp6nettjf9vqu45ta4zkza20hhst3vq433aez",
+    "laneAda": 3,
+    "note": "non-Plutus baseline"
+  },
+  "timestamp": "2026-07-27T08:42:33.803Z"
+}

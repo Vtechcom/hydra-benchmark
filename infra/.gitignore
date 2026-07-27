@@ -1,0 +1,5 @@
+# hydra-node binaries (~430MB each), downloaded or symlinked per version
+bin/
+
+# per-version/per-env runtime state: persistence, embedded etcd, generated keys, logs
+state/

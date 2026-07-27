@@ -3,3 +3,6 @@ node_modules/
 *.log
 .env
 .DS_Store
+
+# local CodeGraph index + daemon state
+.codegraph/

@@ -1,0 +1,53 @@
+# noop-transfer — Hydra in-head benchmark @ 200 TPS [auto-generated]
+
+> Plain in-head ADA self-payment (no Plutus) — node floor cost + reference example for new testcases.
+
+**Date:** 2026-07-27T08:10:53.394Z
+
+**Decision:** **GATE PASS** — gated on **txvalid** steady P95 = 101.08845900000051ms vs gate ≤ 200ms.
+
+## What was measured
+
+2000 pre-signed txs were fired round-robin across 40 independent lanes at a sustained 200 TPS (closed-loop(16,snapshot)). Signing is off the hot path, so the rig genuinely *offers* the target rate — any remaining ceiling is the node's. Two latencies are correlated per tx: **TxValid** (node validated the state transition locally) and **SnapshotConfirmed** (settled in a signed snapshot).
+
+| Metric | Value |
+|---|---|
+| Target TPS | 200 |
+| Loop mode | closed-loop(16,snapshot) |
+| Lanes × chain | 40 × 50 = 2000 |
+| Offered (submit) | 2000 @ 121.9 TPS |
+| Node-validated (TxValid) | 2000 @ 121.9 TPS |
+| TxInvalid (logic reject — **gated**) | 0 |
+| Stale-input race (rig timing — **excluded from gate**) | 0 |
+| Confirmed (in snapshot) | 2000 @ 121.9 TPS |
+| Snapshots observed | 250 |
+| Avg tx / snapshot | 8 |
+| **TxValid latency (matching) — steady P50/P95/P99/max** | **55.0136250000005 / 101.08845900000051 / 123.04254200000105 / 161.23233299999993 ms** (n=1184/2000) |
+| SnapshotConfirmed latency (settlement) — steady P50/P95/P99/max | 128.93154200000026 / 153.6430419999997 / 184.5762079999986 / 195.7015420000007 ms (n=1184/2000) |
+| Saturated? | false |
+| node-vs-client verdict | both-continuous |
+
+Two metrics, two purposes. **TxValid** = node applied the state transition (the right latency for *matching* feasibility). **SnapshotConfirmed** = settled in a multi-party-signed snapshot (the only state safe to fan out / withdraw against). Hydra **batches** snapshots on a cadence, so per-tx SnapshotConfirmed P95 ≤ 200ms is *not* an achievable target and must NOT gate matching; it is tracked as a separate settlement-cadence signal. Where the throughputs diverge locates any ceiling: offered ≈ 200 but validated ≪ 200 ⇒ node validation is the limit; validated ≈ offered but confirm lags ⇒ snapshot cadence (settlement), not matching.
+
+> ⚠️ TxValid is **not** finality. On head close/contestation only the latest *confirmed snapshot* survives on L1; a TxValid-but-not-yet-snapshotted tx can be lost. Custody/withdraw/fanout MUST wait for SnapshotConfirmed.
+
+## Testcase metadata
+
+- **wallet:** `addr_test1qz5gzaepa69zsv2k6a3cmc8pw4qtjl03a859c6usldp4s6r5gw88l78t4wdzqzp6nettjf9vqu45ta4zkza20hhst3vq433aez`
+- **laneAda:** `3`
+- **note:** `non-Plutus baseline`
+
+## Gate decision
+
+✅ **PASS** — txvalid steady P95 101.08845900000051ms ≤ 200ms with 0 invalid txs at 121.9 TPS offered.
+
+## Reproduce
+
+```bash
+HYDRA_WS=ws://localhost:4003 HYDRA_HTTP=http://localhost:4003 \
+  BENCH_TPS=200 BENCH_DURATION_S=10 BENCH_LANES=40 \
+  BENCH_INFLIGHT_MAX=16 BENCH_INFLIGHT_GATE=snapshot \
+  pnpm bench --testcase noop-transfer   # this run (2000 txs, closed-loop(16,snapshot))
+```
+
+Machine-readable summary: `2.3.0-ef833d8a/macos-arm64-native-interleaved/noop-transfer/200tps-10s-40lanes-chained-closed16-snapshot/run-03/summary.json` (under `results/`).

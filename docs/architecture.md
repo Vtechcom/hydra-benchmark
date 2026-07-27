@@ -35,9 +35,12 @@ flowchart TD
 | `src/core/types.ts` | the `Testcase` plug-in contract + `Signed` / `GateSpec` / `PrepareContext` |
 | `src/core/registry.ts` | global testcase registry (`register` / `getTestcase` / `listTestcases`) |
 | `src/core/metrics.ts` | `nowMs` (monotonic clock), `pct`, `steadyBlock` (warmup-trimmed percentiles) |
-| `src/core/runner.ts` | `fireAndMeasure` — the generic FIRE+MEASURE loop, open-/closed-loop, drain |
-| `src/core/reporter.ts` | `writeReport` — gate logic, batching analysis, node-vs-client, artifacts |
-| `src/cli.ts` | entrypoint: parse → connect → `prepare` → `fireAndMeasure` → `writeReport` |
+| `src/core/runner.ts` | `fireAndMeasure` — the generic FIRE+MEASURE loop: K auto-calibration, closed-/open-loop, `--latency` K sweep, drain |
+| `src/core/reporter.ts` | `writeReport` / `writeSweepReport` / `writeLatencyReport` — gate logic, batching analysis, node-vs-client, artifacts |
+| `src/core/paths.ts` | where a run is filed: `results/<node-version>/<env>/<testcase>/<profile>/run-NN/` + the `index.csv` row |
+| `src/cli.ts` | entrypoint: parse → connect → read the node's version → `prepare` → `fireAndMeasure` → `writeReport` |
+| `infra/` | the heads themselves: shared ledger config, per-version binaries, per-env launchers |
+| `scripts/compare.ts` | median + spread per hydra-node version, within one (testcase, profile, env) group |
 | `src/testcases/<name>/` | a testcase (tx shape, fanout, pre-sign) + any blueprint it needs |
 | `src/testcases/index.ts` | manifest: imports + `register`s every testcase |
 

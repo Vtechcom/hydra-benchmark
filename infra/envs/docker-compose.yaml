@@ -1,0 +1,29 @@
+# Driven by envs/docker.sh (which exports HYDRA_VERSION, LEDGER_DIR, STATE_DIR
+# and the ports). Do not run `docker compose up` here directly — the paths are
+# supplied by the launcher so every version/env shares one ledger config.
+services:
+  hydra-node:
+    image: ghcr.io/cardano-scaling/hydra-node:${HYDRA_VERSION}
+    volumes:
+      - ${LEDGER_DIR}:/ledger:ro
+      - ${STATE_DIR}:/state
+    ports:
+      - '${API_PORT}:${API_PORT}'
+      - '${LISTEN_PORT}:${LISTEN_PORT}'
+      - '${MONITORING_PORT}:${MONITORING_PORT}'
+    command:
+      [
+        '--node-id', '1',
+        '--api-host', '0.0.0.0',
+        '--api-port', '${API_PORT}',
+        '--listen', '0.0.0.0:${LISTEN_PORT}',
+        '--monitoring-port', '${MONITORING_PORT}',
+        '--hydra-signing-key', '/state/credentials/wallet-hydra.sk',
+        '--persistence-dir', '/state/persistence',
+        '--persistence-rotate-after', '20000',
+        '--offline-head-seed', '0000000000000000000000000000000000000000000000000000000000000001',
+        '--ledger-protocol-parameters', '/ledger/protocol-parameters.json',
+        '--initial-utxo', '/ledger/utxo-1.json',
+        '--ledger-genesis', '/ledger/shelley-genesis.json',
+      ]
+    restart: 'no'

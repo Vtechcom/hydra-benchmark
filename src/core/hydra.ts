@@ -23,16 +23,35 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 export class HydraClient {
 	private bridge: HydraBridge
+	/** `hydraNodeVersion` from the node's own Greetings — the result tree's version stamp. */
+	private greetedVersion?: string
 
 	constructor(
 		public readonly ws: string,
 		public readonly http: string
 	) {
 		this.bridge = new HydraBridge({ url: ws })
+		// Attach before connect: Greetings is the first frame the node sends.
+		this.bridge.events.on('onMessage', (msg: HydraMessage) => {
+			if (!this.greetedVersion && typeof msg?.hydraNodeVersion === 'string') this.greetedVersion = msg.hydraNodeVersion
+		})
 	}
 
 	async connect(): Promise<void> {
 		if (!(await this.bridge.connect())) throw new Error(`cannot connect Hydra WS ${this.ws}`)
+	}
+
+	/**
+	 * The node's self-reported version, e.g. `2.3.0-ef833d8a07d4…`.
+	 *
+	 * Taken from Greetings rather than from a flag on purpose: results are filed
+	 * under this string, so a run can never be mislabelled as a version it was
+	 * not measured on. Returns undefined if the node never announced one.
+	 */
+	async nodeVersion(timeoutMs = 5_000): Promise<string | undefined> {
+		const deadline = Date.now() + timeoutMs
+		while (!this.greetedVersion && Date.now() < deadline) await sleep(50)
+		return this.greetedVersion
 	}
 
 	async disconnect(): Promise<void> {

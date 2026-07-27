@@ -1,11 +1,21 @@
 /**
  * Testcase: `perp-state` — the original r1-spike workload.
  *
- * Smallest PlutusV3 script-spend that touches a REAL validator (`perp_state`,
+ * Smallest PlutusV3 script-spend that touches a REAL validator (`perp_state` v1,
  * Story 3.1, parameterised by an `operator` vkey hash). Each tx spends a
  * validator-locked UTxO carrying an inline `PerpState` datum and emits a fresh
  * one with `seq` bumped by 1, authorised by a no-op `MatchedOrders { batch: [],
  * seq }` redeemer (conserves value 0==0, bumps seq → all invariants hold).
+ *
+ * NOTE on cost, for anyone reading a latency number off this testcase: the
+ * validator is real (2.7 KB compiled, five invariants), but the state it runs on
+ * is degenerate — empty balances/positions/funding/session-keys and an empty
+ * batch — so every invariant folds an empty collection and `authorized` is a
+ * list-membership check with no crypto. Each invocation therefore costs roughly
+ * the script's fixed overhead (measured: 11-14% of throughput vs the non-Plutus
+ * `noop-transfer` control, K=16). A workload with non-empty batches costs more, so
+ * conclusions about how much a node change helps *script* execution are lower
+ * bounds when drawn from here.
  *
  *   Phase 1 (fanout): spend the wallet into LANES independent seed triples —
  *     each lane = {validator UTxO seq0, funding UTxO, dedicated collateral}.
@@ -23,7 +33,11 @@ import type { Utxo } from '../../core/hydra'
 import plutus from './plutus.json' with { type: 'json' }
 
 const lovelace = (q: string | number) => [{ unit: 'lovelace', quantity: String(q) }]
-const newTxBuilder = () => new TxBuilder({ isHydra: true, params: { minFeeA: 0, minFeeB: 0 } })
+// Mirror the head's ledger params: the offline head runs fee = 0 AND
+// executionUnitPrices = 0. The SDK's defaults are real preprod prices, so a
+// script spend would be charged ~1.5 ADA of exec-unit fee the head never asks
+// for — the exactly-balanced 7 ADA in / 7 ADA out chain then fails to balance.
+const newTxBuilder = () => new TxBuilder({ isHydra: true, params: { minFeeA: 0, minFeeB: 0, priceMem: 0, priceStep: 0 } })
 
 // Per-run state derived once in prepare() and reused by helpers via this closure-ish module object.
 type Ctx = {
@@ -278,7 +292,8 @@ let lastCtx: Ctx | undefined
 
 export const perpState: Testcase = {
 	name: 'perp-state',
-	description: 'PlutusV3 perp_state script-spend (no-op MatchedOrders, seq bump) — the original r1-spike workload.',
+	description:
+		'PlutusV3 perp_state v1 script-spend — real 5-invariant validator on an empty state (no-op MatchedOrders, seq bump), so ~fixed script overhead per call. The original r1-spike workload.',
 	gate: { metric: 'txvalid', p95Ms: 200, requireZeroInvalid: true },
 	async prepare(p) {
 		const c = deriveCtx(p)

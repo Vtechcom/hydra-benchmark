@@ -1,9 +1,11 @@
 /**
- * Turns a `Stats` run into the gate decision + artifacts:
- *   results/<testcase>/summary.json          machine-readable
- *   results/<testcase>/report.generated.md    human report
- *   results/<testcase>/arrivals.csv           ack-cadence timeline
- *   results/<testcase>/node-vs-client.csv      node-emit vs client-recv gaps
+ * Turns a `Stats` run into the gate decision + artifacts, inside the run dir
+ * `results/<node-version>/<env>/<testcase>/<profile>/run-NN/` (see core/paths):
+ *   summary.json          machine-readable
+ *   report.generated.md   human report
+ *   arrivals.csv          ack-cadence timeline
+ *   node-vs-client.csv    node-emit vs client-recv gaps
+ * plus one appended row in `results/index.csv`.
  *
  * Gate logic (testcase-agnostic): PASS ⟺ steady-state P95 of the gated metric
  * ≤ threshold, AND (if required) 0 logic-reject invalids, AND the node is not
@@ -13,10 +15,12 @@
  */
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { relative } from 'node:path'
 import type { BenchConfig } from './config'
 import type { GateSpec } from './types'
 import type { Stats } from './runner'
 import { pct, steadyBlock } from './metrics'
+import { appendIndexRow, type RunLocation } from './paths'
 
 export type ReportInput = {
 	testcaseName: string
@@ -26,12 +30,26 @@ export type ReportInput = {
 	stats: Stats
 	meta: Record<string, unknown>
 	outDir: string
+	/** which node version / host / profile this run belongs to */
+	run: RunLocation
+}
+
+/** The run's coordinates, embedded in every summary so a stray file stays self-describing. */
+function runStamp(run: RunLocation, config: BenchConfig) {
+	return {
+		nodeVersion: run.nodeVersion,
+		nodeVersionRaw: run.nodeVersionRaw ?? null,
+		env: run.env,
+		profile: run.profile,
+		runId: run.runId,
+		head: { ws: config.ws, http: config.http }
+	}
 }
 
 export type ReportResult = { pass: boolean; summary: Record<string, unknown> }
 
 export function writeReport(input: ReportInput): ReportResult {
-	const { testcaseName, testcaseDescription, gate, config, stats, meta, outDir } = input
+	const { testcaseName, testcaseDescription, gate, config, stats, meta, outDir, run } = input
 	const gateMs = config.gateMs || gate.p95Ms
 	const span = stats.lastFireTs - stats.firstFireTs
 	const lo = stats.firstFireTs + config.warmupFrac * span
@@ -99,10 +117,15 @@ export function writeReport(input: ReportInput): ReportResult {
 
 	const summary = {
 		testcase: testcaseName,
+		...runStamp(run, config),
 		decision,
 		gatedOn: gate.metric,
 		mode: config.independent ? 'independent' : 'chained',
-		loop: config.inflightMax > 0 ? `closed-loop(${config.inflightMax},${config.inflightGate})` : 'open-loop',
+		// The K the runner settled on — with auto-calibration `config.inflightMax`
+		// is still 0 here, and reporting that would label a closed-loop run "open-loop".
+		loop: stats.effectiveInflightMax > 0 ? `closed-loop(${stats.effectiveInflightMax},${config.inflightGate})` : 'open-loop',
+		inflightMax: stats.effectiveInflightMax,
+		inflightCalibration: stats.calibration ?? null,
 		gateMs,
 		targetTps: config.tps,
 		durationS: config.durationS,
@@ -127,12 +150,19 @@ export function writeReport(input: ReportInput): ReportResult {
 		batching,
 		nodeVsClient,
 		meta,
-		head: { ws: config.ws, http: config.http },
 		timestamp: new Date().toISOString()
 	}
 
 	mkdirSync(outDir, { recursive: true })
 	writeFileSync(resolve(outDir, 'summary.json'), JSON.stringify(summary, null, 2))
+	appendIndexRow(run.resultsRoot, {
+		...summary,
+		txValidP50: tv.p50,
+		txValidP95: tv.p95,
+		snapshotP50: sc.p50,
+		snapshotP95: sc.p95,
+		path: relative(run.resultsRoot, outDir)
+	})
 
 	// arrival timeline (ms since first fire)
 	const t0 = stats.firstFireTs
@@ -148,7 +178,7 @@ export function writeReport(input: ReportInput): ReportResult {
 	for (const r of raw) nvc.push(`${(r.nodeTs - nt0).toFixed(0)},${(r.localTs - lt0).toFixed(0)}`)
 	writeFileSync(resolve(outDir, 'node-vs-client.csv'), nvc.join('\n') + '\n')
 
-	writeFileSync(resolve(outDir, 'report.generated.md'), renderMarkdown({ testcaseName, testcaseDescription, gate, gateMs, config, stats, summary, tv, sc, pass, decision, meta }))
+	writeFileSync(resolve(outDir, 'report.generated.md'), renderMarkdown({ testcaseName, testcaseDescription, gate, gateMs, config, stats, summary, tv, sc, pass, decision, meta, summaryRelPath: relative(run.resultsRoot, resolve(outDir, 'summary.json')) }))
 
 	console.log(
 		`\n${decision} [${summary.loop}] — ${gate.metric} steady P95=${gated.p95}ms (gate ${gateMs}ms) | TxValid P95=${tv.p95}ms snapshot P95=${sc.p95}ms | offered ${summary.offeredTps} / valid ${summary.validTps} / confirm ${summary.confirmTps} TPS | invalid=${stats.invalid} stale=${stats.staleInputRace}`
@@ -158,8 +188,143 @@ export function writeReport(input: ReportInput): ReportResult {
 	return { pass, summary }
 }
 
+/**
+ * `--latency`: percentiles as a function of the in-flight bound K.
+ *
+ * One number cannot be "the latency". At K=1 the node handles one transaction at
+ * a time, so P50/P95 there is **service time** — the work itself, no queueing. As
+ * K rises, throughput climbs until the node saturates, after which every extra
+ * in-flight transaction only adds waiting. This report gives both ends: the
+ * service-time floor, and the knee — the largest K whose P95 still meets the
+ * gate, i.e. the deepest pipeline that keeps latency honest.
+ */
+export function writeLatencyReport(input: ReportInput): ReportResult {
+	const { testcaseName, testcaseDescription, gate, config, stats, meta, outDir, run } = input
+	const gateMs = config.gateMs || gate.p95Ms
+	const inWin = (ts: number, lo: number, hi: number) => ts >= lo && ts <= hi
+
+	const rows = stats.kWindows.map(w => {
+		// Bucket by FIRE time: a sample belongs to the K that was in force when it
+		// was submitted, not to whichever K happened to be running when it acked.
+		const tv = stats.validSamples.filter(s => inWin(s.fireTs, w.fireStart, w.fireEnd)).map(s => s.lat).sort((a, b) => a - b)
+		const sc = stats.samples.filter(s => inWin(s.fireTs, w.fireStart, w.fireEnd)).map(s => s.lat).sort((a, b) => a - b)
+		const durS = Math.max((w.fireEnd - w.fireStart) / 1000, 0.001)
+		return {
+			k: w.k,
+			offered: w.offered,
+			confirmed: sc.length,
+			confirmTps: +(sc.length / durS).toFixed(1),
+			txValidP50: +pct(tv, 50).toFixed(1),
+			txValidP95: +pct(tv, 95).toFixed(1),
+			snapshotP50: +pct(sc, 50).toFixed(1),
+			snapshotP95: +pct(sc, 95).toFixed(1),
+			samples: sc.length
+		}
+	})
+
+	const gatedP95 = (r: (typeof rows)[number]) => (gate.metric === 'snapshot' ? r.snapshotP95 : r.txValidP95)
+	const floor = rows.find(r => r.k === Math.min(...rows.map(x => x.k)))
+	const meeting = rows.filter(r => r.samples > 0 && gatedP95(r) <= gateMs)
+	const knee = meeting.length ? meeting[meeting.length - 1] : undefined
+	const peak = rows.reduce((best, r) => (r.confirmTps > (best?.confirmTps ?? -1) ? r : best), rows[0])
+
+	const summary = {
+		testcase: testcaseName,
+		kind: 'latency',
+		...runStamp(run, config),
+		gatedOn: gate.metric,
+		gateMs,
+		inflightGate: config.inflightGate,
+		kSteps: config.kSteps,
+		txsPerStep: config.kStepTxs,
+		serviceTimeMs: floor ? { k: floor.k, txValidP50: floor.txValidP50, txValidP95: floor.txValidP95, snapshotP50: floor.snapshotP50, snapshotP95: floor.snapshotP95 } : null,
+		knee: knee ? { k: knee.k, gatedP95: gatedP95(knee), confirmTps: knee.confirmTps } : null,
+		peakConfirmTps: peak ? { k: peak.k, confirmTps: peak.confirmTps, gatedP95: gatedP95(peak) } : null,
+		rows,
+		meta,
+		totalInvalid: stats.invalid,
+		totalStaleInputRace: stats.staleInputRace,
+		timestamp: new Date().toISOString()
+	}
+
+	mkdirSync(outDir, { recursive: true })
+	writeFileSync(resolve(outDir, 'latency.json'), JSON.stringify(summary, null, 2))
+	writeFileSync(
+		resolve(outDir, 'latency-results.csv'),
+		[
+			'k,offered,confirmed,confirm_tps,txvalid_p50_ms,txvalid_p95_ms,snapshot_p50_ms,snapshot_p95_ms',
+			...rows.map(r => `${r.k},${r.offered},${r.confirmed},${r.confirmTps},${r.txValidP50},${r.txValidP95},${r.snapshotP50},${r.snapshotP95}`)
+		].join('\n') + '\n'
+	)
+
+	const table = [
+		'| K (in-flight) | confirm TPS | TxValid P50 | TxValid P95 | snapshot P50 | snapshot P95 | samples |',
+		'|---:|---:|---:|---:|---:|---:|---:|',
+		...rows.map(r => `| ${r.k} | ${r.confirmTps} | ${r.txValidP50} | ${r.txValidP95} | ${r.snapshotP50} | ${r.snapshotP95} | ${r.samples} |`)
+	].join('\n')
+
+	writeFileSync(
+		resolve(outDir, 'latency.generated.md'),
+		`# ${testcaseName} — service time vs pipeline depth [auto-generated]
+
+> ${testcaseDescription}
+
+**Date:** ${summary.timestamp} · hydra-node ${run.nodeVersion} · env ${run.env}
+
+## Service time (K=1, no queueing)
+
+${floor ? `- TxValid **P50 ${floor.txValidP50}ms · P95 ${floor.txValidP95}ms**\n- SnapshotConfirmed **P50 ${floor.snapshotP50}ms · P95 ${floor.snapshotP95}ms**` : '- no samples at the lowest K'}
+
+This is the work itself: one transaction in flight, nothing waiting behind it. Every larger K adds queueing on top.
+
+## Knee
+
+- Deepest pipeline still meeting the gate (${gate.metric} P95 ≤ ${gateMs}ms): **K = ${knee?.k ?? '—'}**${knee ? ` (P95 ${gatedP95(knee)}ms, ${knee.confirmTps} confirm TPS)` : ' — even K=1 misses the gate'}
+- Peak confirm throughput observed: **${peak?.confirmTps ?? 0} TPS** at K=${peak?.k ?? '—'} (${peak ? gatedP95(peak) : '—'}ms P95)
+- Logic-reject invalid: ${stats.invalid} · stale-input race: ${stats.staleInputRace}
+
+Past the knee, throughput stops rising while latency keeps climbing — that region is queue time, and any P95 quoted from it describes the backlog, not the node.
+
+## Latency vs K
+
+${table}
+
+## Reproduce
+
+\`\`\`bash
+HYDRA_WS=${config.ws} HYDRA_HTTP=${config.http} \\
+  BENCH_K_SWEEP="${config.kSteps.join(',')}" BENCH_K_STEP_TXS=${config.kStepTxs} \\
+  BENCH_INFLIGHT_GATE=${config.inflightGate} \\
+  pnpm bench --testcase ${testcaseName} --latency
+\`\`\`
+
+Machine-readable: \`${relative(run.resultsRoot, resolve(outDir, 'latency.json'))}\` (under \`results/\`).
+`
+	)
+
+	appendIndexRow(run.resultsRoot, {
+		...summary,
+		decision: `service-p50=${floor?.snapshotP50 ?? '—'}ms knee=K${knee?.k ?? 0}`,
+		confirmTps: peak?.confirmTps ?? 0,
+		txValidP50: floor?.txValidP50,
+		txValidP95: floor?.txValidP95,
+		snapshotP50: floor?.snapshotP50,
+		snapshotP95: floor?.snapshotP95,
+		invalid: stats.invalid,
+		staleInputRace: stats.staleInputRace,
+		path: relative(run.resultsRoot, outDir)
+	})
+
+	console.log(
+		`\nSERVICE TIME (K=1) — TxValid P50=${floor?.txValidP50}ms P95=${floor?.txValidP95}ms · snapshot P50=${floor?.snapshotP50}ms P95=${floor?.snapshotP95}ms`
+	)
+	console.log(`knee: K=${knee?.k ?? '—'} (${gate.metric} P95 ≤ ${gateMs}ms) · peak ${peak?.confirmTps ?? 0} confirm TPS at K=${peak?.k ?? '—'}`)
+	console.log(`latency report → ${resolve(outDir, 'latency.generated.md')}`)
+	return { pass: !!knee, summary }
+}
+
 export function writeSweepReport(input: ReportInput): ReportResult {
-	const { testcaseName, testcaseDescription, config, stats, meta, outDir } = input
+	const { testcaseName, testcaseDescription, config, stats, meta, outDir, run } = input
 	const trackFrac = 0.8
 	const inWin = (ts: number, lo: number, hi: number) => ts >= lo && ts <= hi
 	const rows = stats.stepWindows.map(w => {
@@ -190,6 +355,7 @@ export function writeSweepReport(input: ReportInput): ReportResult {
 	const summary = {
 		testcase: testcaseName,
 		kind: 'sweep',
+		...runStamp(run, config),
 		stepSeconds: config.stepS,
 		steps: config.sweepSteps,
 		lanes: config.lanes,
@@ -203,7 +369,6 @@ export function writeSweepReport(input: ReportInput): ReportResult {
 			: `node plateaus around ${ceiling.toFixed(0)} validTps; knee (last tracking step) = ${knee} TPS`,
 		rows,
 		meta,
-		head: { ws: config.ws, http: config.http },
 		totalInvalid: stats.invalid,
 		totalStaleInputRace: stats.staleInputRace,
 		timestamp: new Date().toISOString()
@@ -211,6 +376,14 @@ export function writeSweepReport(input: ReportInput): ReportResult {
 
 	mkdirSync(outDir, { recursive: true })
 	writeFileSync(resolve(outDir, 'sweep.json'), JSON.stringify(summary, null, 2))
+	appendIndexRow(run.resultsRoot, {
+		...summary,
+		decision: `knee=${knee}tps`,
+		validTps: summary.sustainedCeilingValidTps,
+		invalid: stats.invalid,
+		staleInputRace: stats.staleInputRace,
+		path: relative(run.resultsRoot, outDir)
+	})
 	writeFileSync(
 		resolve(outDir, 'sweep-results.csv'),
 		[
@@ -258,7 +431,7 @@ HYDRA_WS=${config.ws} HYDRA_HTTP=${config.http} \\
   pnpm bench --testcase ${testcaseName}
 \`\`\`
 
-Machine-readable summary: \`results/${testcaseName}/sweep.json\`.
+Machine-readable summary: \`${relative(run.resultsRoot, resolve(outDir, 'sweep.json'))}\` (under \`results/\`).
 `
 	)
 
@@ -281,8 +454,10 @@ function renderMarkdown(p: {
 	pass: boolean
 	decision: string
 	meta: Record<string, unknown>
+	/** run dir relative to results/, so the report points at its own artifacts */
+	summaryRelPath: string
 }): string {
-	const { testcaseName, testcaseDescription, gate, gateMs, config, stats, summary, tv, sc, pass, decision, meta } = p
+	const { testcaseName, testcaseDescription, gate, gateMs, config, stats, summary, tv, sc, pass, decision, meta, summaryRelPath } = p
 	const laneRevisit = (config.lanes / config.tps).toFixed(1)
 	const gatedP95 = gate.metric === 'snapshot' ? sc.p95 : tv.p95
 	const metaLines = Object.entries(meta)
@@ -342,9 +517,10 @@ ${pass
 \`\`\`bash
 HYDRA_WS=${config.ws} HYDRA_HTTP=${config.http} \\
   BENCH_TPS=${config.tps} BENCH_DURATION_S=${config.durationS} BENCH_LANES=${config.lanes} \\
-  pnpm bench --testcase ${testcaseName}            # this run (${config.tps} TPS × ${config.durationS}s, ${config.totalTxs} txs)
+  BENCH_INFLIGHT_MAX=${summary.inflightMax || 0} BENCH_INFLIGHT_GATE=${config.inflightGate} \\
+  pnpm bench --testcase ${testcaseName}${summary.inflightMax ? '' : ' --open-loop'}   # this run (${config.totalTxs} txs, ${summary.loop})
 \`\`\`
 
-Machine-readable summary: \`results/${testcaseName}/summary.json\`.
+Machine-readable summary: \`${summaryRelPath}\` (under \`results/\`).
 `
 }
